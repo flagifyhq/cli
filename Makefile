@@ -15,7 +15,7 @@ run:
 	go run $(MAIN) $(ARGS)
 
 install:
-	go install $(LDFLAGS) $(MAIN)
+	go install -v $(LDFLAGS) $(MAIN)
 
 clean:
 	rm -rf $(BUILD_DIR)
