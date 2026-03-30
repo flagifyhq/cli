@@ -17,6 +17,12 @@ brew install flagify
 
 Or download binaries directly from [GitHub Releases](https://github.com/flagifyhq/cli/releases).
 
+**Tip:** Add a short alias to your shell profile for faster usage:
+
+```bash
+echo 'alias flag="flagify"' >> ~/.zshrc && source ~/.zshrc
+```
+
 ## Quick Start
 
 ```bash

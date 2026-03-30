@@ -71,6 +71,20 @@ brew install flagify
 
 Download the latest release from [GitHub Releases](https://github.com/flagifyhq/cli/releases).
 
+### Alias (optional)
+
+For a shorter command, add an alias to your shell profile:
+
+```bash
+echo 'alias flag="flagify"' >> ~/.zshrc && source ~/.zshrc
+```
+
+Then use `flag` instead of `flagify`:
+
+```bash
+flag flags list -p proj_xxx
+```
+
 ## Authentication
 
 ```bash
