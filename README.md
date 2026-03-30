@@ -54,10 +54,17 @@ The official Flagify CLI for managing feature flags from the terminal. Built in 
 go install github.com/flagifyhq/cli/cmd/flagify@latest
 ```
 
-### Homebrew (coming soon)
+### npm
 
 ```bash
-brew install flagifyhq/tap/flagify
+npm install -g @flagify/cli
+```
+
+### Homebrew
+
+```bash
+brew tap flagifyhq/tap
+brew install flagify
 ```
 
 ### Binary
@@ -70,7 +77,7 @@ Download the latest release from [GitHub Releases](https://github.com/flagifyhq/
 flagify login
 ```
 
-Opens the browser for OAuth authentication. Credentials are stored in `~/.flagify/config.json`.
+Prompts for email and password. Credentials are stored in `~/.flagify/config.json`.
 
 ## Commands
 
@@ -138,17 +145,25 @@ The CLI stores configuration in `~/.flagify/config.json`:
 
 ```json
 {
-  "token": "your-auth-token",
-  "api_url": "https://api.flagify.dev",
+  "accessToken": "eyJhbGci...",
+  "refreshToken": "eyJhbGci...",
+  "apiUrl": "https://api.flagify.dev",
   "project": "proj_xxx"
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `token` | Authentication token (set via `flagify login`) |
-| `api_url` | API base URL (default: `https://api.flagify.dev`) |
+| `accessToken` | JWT access token (set via `flagify login`) |
+| `refreshToken` | JWT refresh token (set via `flagify login`) |
+| `apiUrl` | API base URL (default: `https://api.flagify.dev`) |
 | `project` | Default project key (avoids passing `--project` every time) |
+
+View current config:
+
+```bash
+flagify config
+```
 
 ## Global flags
 
