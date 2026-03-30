@@ -105,9 +105,19 @@ flagify workspaces list
 
 ---
 
+### `flagify workspaces pick`
+
+Interactively select a default workspace. Saved to `~/.flagify/config.json`.
+
+```bash
+flagify workspaces pick
+```
+
+---
+
 ### `flagify projects list`
 
-List projects in a workspace.
+List projects in a workspace. Falls back to saved workspace if `--workspace` is not passed.
 
 ```bash
 flagify projects list -w ws_xxx
@@ -115,7 +125,7 @@ flagify projects list -w ws_xxx
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--workspace` | `-w` | Workspace ID (required) |
+| `--workspace` | `-w` | Workspace ID (falls back to config default) |
 
 ---
 
@@ -125,6 +135,26 @@ Show project details with environments.
 
 ```bash
 flagify projects get proj_xxx
+```
+
+---
+
+### `flagify projects pick`
+
+Interactively select a default project. Saved to `~/.flagify/config.json`.
+
+```bash
+flagify projects pick
+```
+
+---
+
+### `flagify environments pick`
+
+Interactively select a default environment. Saved to `~/.flagify/config.json`.
+
+```bash
+flagify environments pick
 ```
 
 ---
@@ -178,6 +208,53 @@ flagify flags toggle dark-mode -p proj_xxx -e prod
 
 ---
 
+### `flagify keys generate`
+
+Generate an API key pair (publishable + secret) for an environment. Keys are required for SDK integration.
+
+```bash
+flagify keys generate -p proj_xxx -e development
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project key (required) |
+| `--environment` | `-e` | Environment key (required) |
+
+> **Important:** The secret key is only shown once. Save it immediately.
+
+---
+
+### `flagify keys list`
+
+List all API keys for an environment.
+
+```bash
+flagify keys list -p proj_xxx -e development
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project key (required) |
+| `--environment` | `-e` | Environment key (required) |
+
+---
+
+### `flagify keys revoke`
+
+Revoke all active API keys for an environment.
+
+```bash
+flagify keys revoke -p proj_xxx -e development
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project key (required) |
+| `--environment` | `-e` | Environment key (required) |
+
+---
+
 ### `flagify version`
 
 Print the CLI version and build info.
@@ -196,7 +273,9 @@ The CLI stores configuration in `~/.flagify/config.json`:
   "accessToken": "eyJhbGci...",
   "refreshToken": "eyJhbGci...",
   "apiUrl": "https://api.flagify.dev",
-  "project": "proj_xxx"
+  "workspace": "ws_xxx",
+  "project": "proj_xxx",
+  "environment": "development"
 }
 ```
 
@@ -205,7 +284,9 @@ The CLI stores configuration in `~/.flagify/config.json`:
 | `accessToken` | JWT access token (set via `flagify login`) |
 | `refreshToken` | JWT refresh token (set via `flagify login`) |
 | `apiUrl` | API base URL (default: `https://api.flagify.dev`) |
-| `project` | Default project key (avoids passing `--project` every time) |
+| `workspace` | Default workspace ID (set via `flagify workspaces pick`) |
+| `project` | Default project key (set via `flagify projects pick`) |
+| `environment` | Default environment key (set via `flagify environments pick`) |
 
 View current config:
 
@@ -236,8 +317,10 @@ These flags are available on all commands:
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--workspace` | `-w` | Workspace ID |
 | `--project` | `-p` | Project key |
 | `--environment` | `-e` | Environment (dev, staging, prod) |
+| `--yes` | `-y` | Skip confirmation prompts |
 | `--help` | `-h` | Help for any command |
 
 ## Development
@@ -273,6 +356,8 @@ cmd/flagify/       Entry point (main.go)
 cmd/               Command definitions (cobra)
 internal/api/      HTTP client for Flagify API
 internal/config/   Local config management (~/.flagify/)
+internal/picker/   Interactive selection (huh)
+internal/ui/       Terminal styling (lipgloss)
 ```
 
 ## License
