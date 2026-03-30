@@ -34,6 +34,7 @@ func Cyan(s string) string    { return cyanStyle.Render(s) }
 func Success(msg string) string { return fmt.Sprintf("%s %s", successStyle.Render("✓"), msg) }
 func Info(msg string) string    { return fmt.Sprintf("%s %s", dimStyle.Render("●"), msg) }
 func Warning(msg string) string { return fmt.Sprintf("%s %s", warnStyle.Render("⚠"), msg) }
+func Error(msg string) string   { return redStyle.Render("✗ " + msg) }
 func Arrow() string             { return cyanStyle.Render("→") }
 
 func Table(headers []string, rows [][]string) string {

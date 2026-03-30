@@ -199,12 +199,14 @@ Toggle a boolean flag on or off.
 ```bash
 flagify flags toggle my-feature -p proj_xxx
 flagify flags toggle dark-mode -p proj_xxx -e prod
+flagify flags toggle dark-mode -p proj_xxx --all
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project key (required) |
 | `--environment` | `-e` | Environment (dev, staging, prod) |
+| `--all` | `-a` | Toggle in all environments at once |
 
 ---
 

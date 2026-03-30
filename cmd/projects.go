@@ -54,7 +54,12 @@ var projectsListCmd = &cobra.Command{
 var projectsGetCmd = &cobra.Command{
 	Use:   "get [id]",
 	Short: "Get project details with environments",
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing project ID. Usage: flagify projects get <id>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := getClient()
 		if err != nil {

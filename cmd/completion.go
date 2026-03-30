@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,7 +24,12 @@ var completionCmd = &cobra.Command{
   # PowerShell
   flagify completion powershell > flagify.ps1
 `,
-	Args:      cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing shell name. Usage: flagify completion <bash|zsh|fish|powershell>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		switch args[0] {

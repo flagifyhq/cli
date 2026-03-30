@@ -96,7 +96,12 @@ var flagsListCmd = &cobra.Command{
 var flagsCreateCmd = &cobra.Command{
 	Use:   "create [key]",
 	Short: "Create a new feature flag",
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing flag key. Usage: flagify flags create <key>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		cfg, err := config.Load()
@@ -159,7 +164,12 @@ var flagsCreateCmd = &cobra.Command{
 var flagsToggleCmd = &cobra.Command{
 	Use:   "toggle [key]",
 	Short: "Toggle a boolean flag on/off",
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing flag key. Usage: flagify flags toggle <key>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		cfg, err := config.Load()
@@ -167,11 +177,12 @@ var flagsToggleCmd = &cobra.Command{
 			return err
 		}
 		project := resolveFlag(cmd, "project", cfg.Project)
+		all, _ := cmd.Flags().GetBool("all")
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
 		}
-		if env == "" {
+		if !all && env == "" {
 			env = "development"
 		}
 
@@ -194,6 +205,48 @@ var flagsToggleCmd = &cobra.Command{
 		}
 		if targetFlag == nil {
 			return fmt.Errorf("flag %q not found in project", key)
+		}
+
+		if all {
+			if len(targetFlag.Environments) == 0 {
+				return fmt.Errorf("no environments found for flag %q", key)
+			}
+
+			// Determine new state from first environment
+			newState := !targetFlag.Environments[0].Enabled
+			newStateStr := "OFF"
+			if newState {
+				newStateStr = "ON"
+			}
+
+			yes, _ := cmd.Flags().GetBool("yes")
+			envNames := make([]string, len(targetFlag.Environments))
+			for i, fe := range targetFlag.Environments {
+				envNames[i] = fe.EnvironmentKey
+			}
+			confirmed, err := ui.Confirm(
+				fmt.Sprintf("Toggle %s to %s in all environments (%s)?", ui.Bold(key), newStateStr, fmt.Sprintf("%v", envNames)),
+				yes,
+			)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				fmt.Println(ui.Info("Cancelled."))
+				return nil
+			}
+
+			for _, fe := range targetFlag.Environments {
+				if err := client.ToggleFlag(fe.ID, newState); err != nil {
+					return fmt.Errorf("failed to toggle flag in %s: %w", fe.EnvironmentKey, err)
+				}
+				state := ui.Red("OFF")
+				if newState {
+					state = ui.Green("ON")
+				}
+				fmt.Println(ui.Success(fmt.Sprintf("Flag %s is now %s in %s", ui.Bold(key), state, ui.Cyan(fe.EnvironmentKey))))
+			}
+			return nil
 		}
 
 		var targetFE *api.FlagEnv
@@ -239,6 +292,7 @@ var flagsToggleCmd = &cobra.Command{
 func init() {
 	flagsCreateCmd.Flags().StringP("type", "t", "boolean", "Flag type (boolean, string, number, json)")
 	flagsCreateCmd.Flags().String("description", "", "Flag description")
+	flagsToggleCmd.Flags().BoolP("all", "a", false, "Toggle in all environments")
 
 	flagsCmd.AddCommand(flagsListCmd)
 	flagsCmd.AddCommand(flagsCreateCmd)

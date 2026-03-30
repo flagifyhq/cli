@@ -5,9 +5,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "flagify",
-	Short: "Flagify CLI — manage feature flags from the terminal",
-	Long:  "The official Flagify CLI for creating, listing, and managing feature flags.",
+	Use:           "flagify",
+	Short:         "Flagify CLI — manage feature flags from the terminal",
+	Long:          "The official Flagify CLI for creating, listing, and managing feature flags.",
+	SilenceErrors: true,
 }
 
 func Execute() error {
