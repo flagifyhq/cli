@@ -7,9 +7,24 @@ import (
 )
 
 type Config struct {
-	Token   string `json:"token"`
-	APIUrl  string `json:"api_url,omitempty"`
-	Project string `json:"project,omitempty"`
+	AccessToken  string `json:"access_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	APIUrl       string `json:"api_url,omitempty"`
+	Project      string `json:"project,omitempty"`
+	Token        string `json:"token,omitempty"` // deprecated, kept for compat
+}
+
+// IsLoggedIn returns true if the user has a valid access token.
+func (c *Config) IsLoggedIn() bool {
+	return c.AccessToken != ""
+}
+
+// GetToken returns the access token (or legacy token).
+func (c *Config) GetToken() string {
+	if c.AccessToken != "" {
+		return c.AccessToken
+	}
+	return c.Token
 }
 
 func configPath() (string, error) {
