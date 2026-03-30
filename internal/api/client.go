@@ -239,11 +239,18 @@ type Flag struct {
 }
 
 type FlagEnv struct {
-	ID                string `json:"id"`
-	EnvironmentID     string `json:"environmentId"`
-	EnvironmentKey    string `json:"environmentKey"`
-	Enabled           bool   `json:"enabled"`
-	RolloutPercentage *int   `json:"rolloutPercentage,omitempty"`
+	ID                string        `json:"id"`
+	EnvironmentID     string        `json:"environmentId"`
+	EnvironmentKey    string        `json:"environmentKey"`
+	Enabled           bool          `json:"enabled"`
+	RolloutPercentage *int          `json:"rolloutPercentage,omitempty"`
+	Variants          []FlagVariant `json:"variants,omitempty"`
+}
+
+type FlagVariant struct {
+	Key    string `json:"key"`
+	Value  any    `json:"value"`
+	Weight int    `json:"weight"`
 }
 
 func (c *Client) ListFlags(projectID string) ([]Flag, error) {

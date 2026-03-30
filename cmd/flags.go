@@ -85,6 +85,9 @@ var flagsListCmd = &cobra.Command{
 					envSummary += ", "
 				}
 				envSummary += e.EnvironmentKey + ":" + status
+				if len(e.Variants) > 0 {
+					envSummary += fmt.Sprintf(" (%dv)", len(e.Variants))
+				}
 			}
 			rows[i] = []string{f.Key, f.Name, ui.Dim(f.Type), envSummary}
 		}
