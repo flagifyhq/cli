@@ -52,14 +52,18 @@ flagify flags toggle my-flag -p <project-id>
 
 ## Shell Completions
 
+**Zsh:**
 ```bash
-# Zsh
 flagify completion zsh > "${fpath[1]}/_flagify"
+```
 
-# Bash
+**Bash:**
+```bash
 flagify completion bash > /usr/local/etc/bash_completion.d/flagify
+```
 
-# Fish
+**Fish:**
+```bash
 flagify completion fish > ~/.config/fish/completions/flagify.fish
 ```
 
