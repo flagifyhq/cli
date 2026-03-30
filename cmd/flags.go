@@ -23,6 +23,14 @@ func getClient() (*api.Client, error) {
 	if cfg.APIUrl != "" {
 		client.SetBaseURL(cfg.APIUrl)
 	}
+	if cfg.RefreshToken != "" {
+		client.SetRefreshToken(cfg.RefreshToken)
+		client.OnTokenRefresh = func(accessToken, refreshToken string) {
+			cfg.AccessToken = accessToken
+			cfg.RefreshToken = refreshToken
+			config.Save(cfg)
+		}
+	}
 	return client, nil
 }
 

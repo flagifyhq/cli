@@ -100,6 +100,100 @@ func TestClientLogin(t *testing.T) {
 	assert.Equal(t, "refresh-456", result.Tokens.RefreshToken)
 }
 
+func TestClientAutoRefreshOn401(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/refresh" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(api.TokenPair{
+				AccessToken:  "new-access",
+				RefreshToken: "new-refresh",
+			})
+			return
+		}
+
+		callCount++
+		if callCount == 1 {
+			// First call: return 401
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"code":    "unauthorized",
+				"message": "token expired",
+			})
+			return
+		}
+		// Second call (after refresh): succeed
+		assert.Equal(t, "Bearer new-access", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	var savedAccess, savedRefresh string
+	client := api.NewClient("expired-token")
+	client.SetBaseURL(server.URL)
+	client.SetRefreshToken("valid-refresh")
+	client.OnTokenRefresh = func(access, refresh string) {
+		savedAccess = access
+		savedRefresh = refresh
+	}
+
+	var result map[string]string
+	err := client.Get("/v1/test", &result)
+	require.NoError(t, err)
+	assert.Equal(t, "ok", result["status"])
+	assert.Equal(t, "new-access", savedAccess)
+	assert.Equal(t, "new-refresh", savedRefresh)
+}
+
+func TestClientNoRefreshOnAuthEndpoints(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"code":    "unauthorized",
+			"message": "invalid credentials",
+		})
+	}))
+	defer server.Close()
+
+	refreshCalled := false
+	client := api.NewClient("bad-token")
+	client.SetBaseURL(server.URL)
+	// No refresh token set — should not attempt refresh
+	client.OnTokenRefresh = func(access, refresh string) {
+		refreshCalled = true
+	}
+
+	var result map[string]string
+	err := client.Get("/v1/test", &result)
+	require.Error(t, err)
+	assert.False(t, refreshCalled)
+}
+
+func TestClientRefreshFailsFallsBack(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"code":    "unauthorized",
+			"message": "token expired",
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("expired-token")
+	client.SetBaseURL(server.URL)
+	client.SetRefreshToken("also-expired")
+	client.OnTokenRefresh = func(access, refresh string) {}
+
+	var result map[string]string
+	err := client.Get("/v1/test", &result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unauthorized")
+}
+
 func TestClientNoToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))

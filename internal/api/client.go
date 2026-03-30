@@ -12,9 +12,11 @@ import (
 const defaultBaseURL = "https://api.flagify.dev"
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	token      string
+	baseURL        string
+	httpClient     *http.Client
+	token          string
+	refreshToken   string
+	OnTokenRefresh func(accessToken, refreshToken string)
 }
 
 func NewClient(token string) *Client {
@@ -25,6 +27,10 @@ func NewClient(token string) *Client {
 		},
 		token: token,
 	}
+}
+
+func (c *Client) SetRefreshToken(token string) {
+	c.refreshToken = token
 }
 
 func (c *Client) SetBaseURL(url string) {
@@ -56,6 +62,27 @@ func (c *Client) Delete(path string) error {
 }
 
 func (c *Client) do(method, path string, body, result any) error {
+	err := c.doOnce(method, path, body, result)
+	if err == nil {
+		return nil
+	}
+
+	// If 401 and we have a refresh token, try to refresh and retry once
+	if isUnauthorized(err) && c.refreshToken != "" && c.OnTokenRefresh != nil {
+		tokens, refreshErr := c.Refresh(c.refreshToken)
+		if refreshErr != nil {
+			return err // return original error
+		}
+		c.token = tokens.AccessToken
+		c.refreshToken = tokens.RefreshToken
+		c.OnTokenRefresh(tokens.AccessToken, tokens.RefreshToken)
+		return c.doOnce(method, path, body, result)
+	}
+
+	return err
+}
+
+func (c *Client) doOnce(method, path string, body, result any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -89,13 +116,31 @@ func (c *Client) do(method, path string, body, result any) error {
 		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
 			return fmt.Errorf("API error %d", resp.StatusCode)
 		}
-		return fmt.Errorf("%s: %s", apiErr.Code, apiErr.Message)
+		return &APIError{StatusCode: resp.StatusCode, Code: apiErr.Code, Message: apiErr.Message}
 	}
 
 	if result != nil {
 		return json.NewDecoder(resp.Body).Decode(result)
 	}
 	return nil
+}
+
+// APIError represents a structured error from the API.
+type APIError struct {
+	StatusCode int
+	Code       string
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+func isUnauthorized(err error) bool {
+	if apiErr, ok := err.(*APIError); ok {
+		return apiErr.StatusCode == http.StatusUnauthorized
+	}
+	return false
 }
 
 // Auth
@@ -133,7 +178,7 @@ func (c *Client) Register(email, password, name, deviceID string) (*AuthResponse
 
 func (c *Client) Refresh(refreshToken string) (*TokenPair, error) {
 	var result TokenPair
-	err := c.Post("/v1/auth/refresh", map[string]string{
+	err := c.doOnce("POST", "/v1/auth/refresh", map[string]string{
 		"refreshToken": refreshToken,
 	}, &result)
 	return &result, err
