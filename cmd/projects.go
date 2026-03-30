@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/picker"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -16,9 +18,13 @@ var projectsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List projects in a workspace",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, _ := cmd.Flags().GetString("workspace")
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		workspace := resolveFlag(cmd, "workspace", cfg.Workspace)
 		if workspace == "" {
-			return fmt.Errorf("--workspace is required")
+			return fmt.Errorf("--workspace is required (or run 'flagify workspaces pick')")
 		}
 
 		client, err := getClient()
@@ -77,10 +83,48 @@ var projectsGetCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	projectsListCmd.Flags().StringP("workspace", "w", "", "Workspace ID")
+var projectsPickCmd = &cobra.Command{
+	Use:   "pick",
+	Short: "Interactively select a default project",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := getClient()
+		if err != nil {
+			return err
+		}
 
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		workspace := resolveFlag(cmd, "workspace", cfg.Workspace)
+		if workspace == "" {
+			ws, err := picker.PickWorkspace(client)
+			if err != nil {
+				return err
+			}
+			workspace = ws.ID
+			cfg.Workspace = workspace
+		}
+
+		project, err := picker.PickProject(client, workspace)
+		if err != nil {
+			return err
+		}
+
+		cfg.Project = project.ID
+		if err := config.Save(cfg); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		fmt.Println(ui.Success(fmt.Sprintf("Project set to %s %s", ui.Bold(project.Name), ui.Dim("("+project.ID+")"))))
+		return nil
+	},
+}
+
+func init() {
 	projectsCmd.AddCommand(projectsListCmd)
 	projectsCmd.AddCommand(projectsGetCmd)
+	projectsCmd.AddCommand(projectsPickCmd)
 	rootCmd.AddCommand(projectsCmd)
 }

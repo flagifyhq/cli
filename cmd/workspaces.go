@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/picker"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +42,37 @@ var workspacesListCmd = &cobra.Command{
 	},
 }
 
+var workspacesPickCmd = &cobra.Command{
+	Use:   "pick",
+	Short: "Interactively select a default workspace",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := getClient()
+		if err != nil {
+			return err
+		}
+
+		ws, err := picker.PickWorkspace(client)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		cfg.Workspace = ws.ID
+		if err := config.Save(cfg); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		fmt.Println(ui.Success(fmt.Sprintf("Workspace set to %s %s", ui.Bold(ws.Name), ui.Dim("("+ws.ID+")"))))
+		return nil
+	},
+}
+
 func init() {
 	workspacesCmd.AddCommand(workspacesListCmd)
+	workspacesCmd.AddCommand(workspacesPickCmd)
 	rootCmd.AddCommand(workspacesCmd)
 }

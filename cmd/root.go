@@ -15,6 +15,8 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringP("workspace", "w", "", "Workspace ID")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Project key")
 	rootCmd.PersistentFlags().StringP("environment", "e", "", "Environment (dev, staging, prod)")
+	rootCmd.PersistentFlags().BoolP("yes", "y", false, "Skip confirmation prompts")
 }

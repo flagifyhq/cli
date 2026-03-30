@@ -23,11 +23,23 @@ var configCmd = &cobra.Command{
 		}
 		fmt.Println(ui.KeyValue("API URL:", apiURL))
 
+		workspace := cfg.Workspace
+		if workspace == "" {
+			workspace = ui.Dim("(not set)")
+		}
+		fmt.Println(ui.KeyValue("Workspace:", workspace))
+
 		project := cfg.Project
 		if project == "" {
 			project = ui.Dim("(not set)")
 		}
 		fmt.Println(ui.KeyValue("Project:", project))
+
+		environment := cfg.Environment
+		if environment == "" {
+			environment = ui.Dim("(not set)")
+		}
+		fmt.Println(ui.KeyValue("Environment:", environment))
 
 		loggedIn := ui.Red("no")
 		if cfg.IsLoggedIn() {

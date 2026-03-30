@@ -20,7 +20,9 @@ func TestConfigSaveAndLoad(t *testing.T) {
 		AccessToken:  "test-access",
 		RefreshToken: "test-refresh",
 		APIUrl:       "http://localhost:7070",
+		Workspace:    "ws-123",
 		Project:      "my-project",
+		Environment:  "staging",
 	}
 
 	err := config.Save(cfg)
@@ -37,7 +39,9 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	assert.Equal(t, "test-access", loaded.AccessToken)
 	assert.Equal(t, "test-refresh", loaded.RefreshToken)
 	assert.Equal(t, "http://localhost:7070", loaded.APIUrl)
+	assert.Equal(t, "ws-123", loaded.Workspace)
 	assert.Equal(t, "my-project", loaded.Project)
+	assert.Equal(t, "staging", loaded.Environment)
 }
 
 func TestConfigLoadMissing(t *testing.T) {

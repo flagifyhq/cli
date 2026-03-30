@@ -9,6 +9,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func resolveFlag(cmd *cobra.Command, name string, configValue string) string {
+	val, _ := cmd.Flags().GetString(name)
+	if val != "" {
+		return val
+	}
+	return configValue
+}
+
 func getClient() (*api.Client, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -41,9 +49,13 @@ var flagsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all flags in a project",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		project, _ := cmd.Flags().GetString("project")
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		project := resolveFlag(cmd, "project", cfg.Project)
 		if project == "" {
-			return fmt.Errorf("--project is required")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
 		}
 
 		client, err := getClient()
@@ -87,11 +99,25 @@ var flagsCreateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		project, _ := cmd.Flags().GetString("project")
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		project := resolveFlag(cmd, "project", cfg.Project)
 		flagType, _ := cmd.Flags().GetString("type")
 		description, _ := cmd.Flags().GetString("description")
 		if project == "" {
-			return fmt.Errorf("--project is required")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+		}
+
+		yes, _ := cmd.Flags().GetBool("yes")
+		confirmed, err := ui.Confirm(fmt.Sprintf("Create flag %s in project %s?", ui.Bold(key), ui.Cyan(project)), yes)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Println(ui.Info("Cancelled."))
+			return nil
 		}
 
 		client, err := getClient()
@@ -136,10 +162,14 @@ var flagsToggleCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		project, _ := cmd.Flags().GetString("project")
-		env, _ := cmd.Flags().GetString("environment")
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		project := resolveFlag(cmd, "project", cfg.Project)
+		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
-			return fmt.Errorf("--project is required")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
 		}
 		if env == "" {
 			env = "development"
@@ -178,6 +208,21 @@ var flagsToggleCmd = &cobra.Command{
 		}
 
 		newState := !targetFE.Enabled
+		newStateStr := "OFF"
+		if newState {
+			newStateStr = "ON"
+		}
+
+		yes, _ := cmd.Flags().GetBool("yes")
+		confirmed, err := ui.Confirm(fmt.Sprintf("Toggle %s to %s in %s?", ui.Bold(key), newStateStr, ui.Cyan(env)), yes)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Println(ui.Info("Cancelled."))
+			return nil
+		}
+
 		if err := client.ToggleFlag(targetFE.ID, newState); err != nil {
 			return fmt.Errorf("failed to toggle flag: %w", err)
 		}
