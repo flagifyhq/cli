@@ -21,7 +21,8 @@
   ],
   "files": [
     "bin/",
-    "install.js"
+    "install.js",
+    "README.md"
   ],
   "dependencies": {
     "tar": "^7.5.13"
