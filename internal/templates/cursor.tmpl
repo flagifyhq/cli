@@ -1,0 +1,41 @@
+# Flagify Feature Flags
+
+This project uses Flagify (@flagify/node, @flagify/react) for feature management.
+
+## SDK Patterns
+
+When creating flag checks:
+- Import from '@flagify/node' for server code, '@flagify/react' for client
+- Always pass a user context with at least userId
+- Always provide a fallback value for getValue()
+- Use isEnabled() for boolean flags
+- Use getVariant() for multivariate/A/B test flags
+- Use getValue() for remote config values
+
+## Code Patterns
+
+Server-side flag evaluation:
+```typescript
+const isEnabled = await flagify.isEnabled('flag-name', {
+  userId: user.id,
+  attributes: { plan: user.plan }
+});
+```
+
+React component with flag:
+```typescript
+import { useFlag } from '@flagify/react';
+const showFeature = useFlag('flag-name');
+```
+
+## Rules
+- Never hardcode flag values — always evaluate dynamically
+- Flag names use kebab-case: 'new-checkout-flow'
+- Group related flags with a shared prefix: 'checkout-*'
+- Always handle both flag states (enabled and disabled)
+- To check current flags, run: `npx flagify flags list`
+{{- if .FlagsContext}}
+
+## Flags snapshot (may be outdated — run the command above for live data)
+{{.FlagsContext}}
+{{- end}}

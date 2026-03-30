@@ -1,0 +1,22 @@
+# Flagify Feature Flags
+
+This project uses the Flagify SDK for feature flag management.
+
+## When writing code that involves feature flags:
+
+1. Import from @flagify/node (server) or @flagify/react (client)
+2. Use isEnabled(flagName, context) for boolean flags
+3. Use getVariant(flagName, context) for A/B tests
+4. Use getValue(flagName, context, fallback) for config values
+5. Always include userId in the context object
+6. Always handle both enabled and disabled states
+7. Flag names are kebab-case: 'feature-name'
+
+## Environments: development, staging, production
+
+To check current flags, run: `npx flagify flags list`
+{{- if .FlagsContext}}
+
+## Flags snapshot (may be outdated — run the command above for live data)
+{{.FlagsContext}}
+{{- end}}

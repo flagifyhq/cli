@@ -1,0 +1,22 @@
+# Feature Flags
+
+This project uses Flagify for feature flag management.
+
+- SDK: `@flagify/node` (server) and `@flagify/react` (client)
+- CLI: `flagify flags list`, `flagify flags create <key>`, `flagify flags toggle <key>`
+- Environments: development, staging, production
+- Flag evaluation is local (cached) with streaming sync
+- Always provide a fallback value when evaluating flags
+- Use `isEnabled()` for boolean flags, `getVariant()` for A/B tests
+- User context requires `userId` at minimum
+- Flag names use kebab-case: `new-checkout-flow`
+
+To see current flags and their state, run:
+```
+flagify flags list
+```
+{{- if .FlagsContext}}
+
+### Flags snapshot (may be outdated — run the command above for live data and update this section)
+{{.FlagsContext}}
+{{- end}}
