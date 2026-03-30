@@ -81,6 +81,40 @@ Prompts for email and password. Credentials are stored in `~/.flagify/config.jso
 
 ## Commands
 
+### `flagify workspaces list`
+
+List your workspaces.
+
+```bash
+flagify workspaces list
+```
+
+---
+
+### `flagify projects list`
+
+List projects in a workspace.
+
+```bash
+flagify projects list -w ws_xxx
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--workspace` | `-w` | Workspace ID (required) |
+
+---
+
+### `flagify projects get`
+
+Show project details with environments.
+
+```bash
+flagify projects get proj_xxx
+```
+
+---
+
 ### `flagify flags list`
 
 List all flags in a project.
@@ -163,6 +197,19 @@ View current config:
 
 ```bash
 flagify config
+```
+
+## Shell completions
+
+```bash
+# Zsh (macOS default)
+flagify completion zsh > "${fpath[1]}/_flagify"
+
+# Bash
+flagify completion bash > /usr/local/etc/bash_completion.d/flagify
+
+# Fish
+flagify completion fish > ~/.config/fish/completions/flagify.fish
 ```
 
 ## Global flags

@@ -23,14 +23,15 @@ Or download binaries directly from [GitHub Releases](https://github.com/flagifyh
 # Login to your account
 flagify login
 
-# List feature flags
-flagify flags list
+# Discover your resources
+flagify workspaces list
+flagify projects list -w <workspace-id>
+flagify projects get <project-id>
 
-# Create a new flag
-flagify flags create --key my-flag --name "My Flag" --type boolean
-
-# Toggle a flag
-flagify flags toggle my-flag --enabled
+# Manage feature flags
+flagify flags list -p <project-id>
+flagify flags create my-flag -p <project-id> --type boolean
+flagify flags toggle my-flag -p <project-id>
 ```
 
 ## Commands
@@ -39,10 +40,28 @@ flagify flags toggle my-flag --enabled
 |---------|-------------|
 | `flagify login` | Authenticate with email and password |
 | `flagify logout` | Clear stored credentials |
-| `flagify flags list` | List all flags in the current project |
+| `flagify workspaces list` | List your workspaces |
+| `flagify projects list` | List projects in a workspace |
+| `flagify projects get` | Show project details with environments |
+| `flagify flags list` | List all flags in a project |
 | `flagify flags create` | Create a new feature flag |
 | `flagify flags toggle` | Enable or disable a flag |
+| `flagify config` | Show current configuration |
+| `flagify completion` | Generate shell completion scripts |
 | `flagify version` | Print CLI version |
+
+## Shell Completions
+
+```bash
+# Zsh
+flagify completion zsh > "${fpath[1]}/_flagify"
+
+# Bash
+flagify completion bash > /usr/local/etc/bash_completion.d/flagify
+
+# Fish
+flagify completion fish > ~/.config/fish/completions/flagify.fish
+```
 
 ## Configuration
 
