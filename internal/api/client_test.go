@@ -268,6 +268,81 @@ func TestClientGetProject(t *testing.T) {
 	assert.Equal(t, "development", project.Environments[0].Key)
 }
 
+func TestClientGenerateKeys(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/environments/env1/keys", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(api.KeyPairResponse{
+			PublishableKey: "pk_dev_abc123",
+			SecretKey:      "sk_dev_abc123",
+			Publishable: api.APIKey{
+				ID:     "key1",
+				Type:   "publishable",
+				Prefix: "pk_dev_abc",
+			},
+			Secret: api.APIKey{
+				ID:     "key2",
+				Type:   "secret",
+				Prefix: "sk_dev_abc",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	result, err := client.GenerateKeys("env1")
+	require.NoError(t, err)
+	assert.Equal(t, "pk_dev_abc123", result.PublishableKey)
+	assert.Equal(t, "sk_dev_abc123", result.SecretKey)
+	assert.Equal(t, "publishable", result.Publishable.Type)
+	assert.Equal(t, "secret", result.Secret.Type)
+}
+
+func TestClientListKeys(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/environments/env1/keys", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.APIKey{
+			{ID: "key1", Type: "publishable", Prefix: "pk_dev_abc"},
+			{ID: "key2", Type: "secret", Prefix: "sk_dev_abc"},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	keys, err := client.ListKeys("env1")
+	require.NoError(t, err)
+	assert.Len(t, keys, 2)
+	assert.Equal(t, "publishable", keys[0].Type)
+	assert.Equal(t, "pk_dev_abc", keys[0].Prefix)
+}
+
+func TestClientRevokeKeys(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/environments/env1/keys/revoke", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	err := client.RevokeKeys("env1")
+	require.NoError(t, err)
+}
+
 func TestClientNoToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))

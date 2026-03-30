@@ -269,3 +269,39 @@ func (c *Client) ToggleFlag(flagEnvID string, enabled bool) error {
 		"enabled": enabled,
 	}, nil)
 }
+
+// API Keys
+
+type APIKey struct {
+	ID            string     `json:"id"`
+	EnvironmentID string     `json:"environmentId"`
+	Type          string     `json:"type"`
+	Prefix        string     `json:"prefix"`
+	LastUsedAt    *time.Time `json:"lastUsedAt,omitempty"`
+	RevokedAt     *time.Time `json:"revokedAt,omitempty"`
+	CreatedBy     string     `json:"createdBy"`
+	CreatedAt     time.Time  `json:"createdAt"`
+}
+
+type KeyPairResponse struct {
+	PublishableKey string `json:"publishableKey"`
+	SecretKey      string `json:"secretKey"`
+	Publishable    APIKey `json:"publishable"`
+	Secret         APIKey `json:"secret"`
+}
+
+func (c *Client) GenerateKeys(environmentID string) (*KeyPairResponse, error) {
+	var result KeyPairResponse
+	err := c.Post("/v1/environments/"+environmentID+"/keys", nil, &result)
+	return &result, err
+}
+
+func (c *Client) ListKeys(environmentID string) ([]APIKey, error) {
+	var result []APIKey
+	err := c.Get("/v1/environments/"+environmentID+"/keys", &result)
+	return result, err
+}
+
+func (c *Client) RevokeKeys(environmentID string) error {
+	return c.Post("/v1/environments/"+environmentID+"/keys/revoke", nil, nil)
+}
