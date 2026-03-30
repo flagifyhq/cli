@@ -1,5 +1,8 @@
 dist/
 bin/
+tmp/
+coverage.out
+.air.toml
 .DS_Store
 npm/node_modules/
 npm/bin/
