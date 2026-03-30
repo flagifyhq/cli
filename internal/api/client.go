@@ -184,6 +184,49 @@ func (c *Client) Refresh(refreshToken string) (*TokenPair, error) {
 	return &result, err
 }
 
+// Workspaces
+
+type Workspace struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Slug     string `json:"slug"`
+	Plan     string `json:"plan"`
+}
+
+func (c *Client) ListWorkspaces() ([]Workspace, error) {
+	var result []Workspace
+	err := c.Get("/v1/workspaces", &result)
+	return result, err
+}
+
+// Projects
+
+type Project struct {
+	ID           string        `json:"id"`
+	WorkspaceID  string        `json:"workspaceId"`
+	Name         string        `json:"name"`
+	Slug         string        `json:"slug"`
+	Environments []Environment `json:"environments,omitempty"`
+}
+
+type Environment struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+func (c *Client) ListProjects(workspaceID string) ([]Project, error) {
+	var result []Project
+	err := c.Get("/v1/workspaces/"+workspaceID+"/projects", &result)
+	return result, err
+}
+
+func (c *Client) GetProject(projectID string) (*Project, error) {
+	var result Project
+	err := c.Get("/v1/projects/"+projectID, &result)
+	return &result, err
+}
+
 // Flags
 
 type Flag struct {

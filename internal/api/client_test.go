@@ -194,6 +194,80 @@ func TestClientRefreshFailsFallsBack(t *testing.T) {
 	assert.Contains(t, err.Error(), "unauthorized")
 }
 
+func TestClientListWorkspaces(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/workspaces", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.Workspace{
+			{ID: "ws1", Name: "Acme Corp", Slug: "acme-corp", Plan: "pro"},
+			{ID: "ws2", Name: "Side Project", Slug: "side-project", Plan: "free"},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	workspaces, err := client.ListWorkspaces()
+	require.NoError(t, err)
+	assert.Len(t, workspaces, 2)
+	assert.Equal(t, "Acme Corp", workspaces[0].Name)
+	assert.Equal(t, "pro", workspaces[0].Plan)
+}
+
+func TestClientListProjects(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/workspaces/ws1/projects", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.Project{
+			{ID: "p1", Name: "Web App", Slug: "web-app"},
+			{ID: "p2", Name: "Mobile App", Slug: "mobile-app"},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	projects, err := client.ListProjects("ws1")
+	require.NoError(t, err)
+	assert.Len(t, projects, 2)
+	assert.Equal(t, "Web App", projects[0].Name)
+}
+
+func TestClientGetProject(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/projects/p1", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(api.Project{
+			ID:   "p1",
+			Name: "Web App",
+			Slug: "web-app",
+			Environments: []api.Environment{
+				{ID: "e1", Key: "development", Name: "Development"},
+				{ID: "e2", Key: "staging", Name: "Staging"},
+				{ID: "e3", Key: "production", Name: "Production"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	project, err := client.GetProject("p1")
+	require.NoError(t, err)
+	assert.Equal(t, "Web App", project.Name)
+	assert.Len(t, project.Environments, 3)
+	assert.Equal(t, "development", project.Environments[0].Key)
+}
+
 func TestClientNoToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))
