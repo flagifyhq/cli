@@ -71,3 +71,33 @@ func TestGetToken(t *testing.T) {
 	cfg = &config.Config{AccessToken: "new", Token: "old"}
 	assert.Equal(t, "new", cfg.GetToken())
 }
+
+func TestPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HOME", tmpDir)
+	defer os.Unsetenv("HOME")
+
+	path, err := config.Path()
+	require.NoError(t, err)
+	assert.Contains(t, path, ".flagify")
+	assert.Contains(t, path, "config.json")
+}
+
+func TestConfigJSONCamelCase(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HOME", tmpDir)
+	defer os.Unsetenv("HOME")
+
+	// Write config with camelCase keys (as the CLI produces)
+	dir := filepath.Join(tmpDir, ".flagify")
+	os.MkdirAll(dir, 0o700)
+	data := `{"accessToken":"tk","refreshToken":"rt","apiUrl":"http://localhost:7070","project":"proj"}`
+	os.WriteFile(filepath.Join(dir, "config.json"), []byte(data), 0o600)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "tk", cfg.AccessToken)
+	assert.Equal(t, "rt", cfg.RefreshToken)
+	assert.Equal(t, "http://localhost:7070", cfg.APIUrl)
+	assert.Equal(t, "proj", cfg.Project)
+}

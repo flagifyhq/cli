@@ -7,9 +7,9 @@ import (
 )
 
 type Config struct {
-	AccessToken  string `json:"access_token,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	APIUrl       string `json:"api_url,omitempty"`
+	AccessToken  string `json:"accessToken,omitempty"`
+	RefreshToken string `json:"refreshToken,omitempty"`
+	APIUrl       string `json:"apiUrl,omitempty"`
 	Project      string `json:"project,omitempty"`
 	Token        string `json:"token,omitempty"` // deprecated, kept for compat
 }
@@ -27,7 +27,7 @@ func (c *Config) GetToken() string {
 	return c.Token
 }
 
-func configPath() (string, error) {
+func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -36,7 +36,7 @@ func configPath() (string, error) {
 }
 
 func Load() (*Config, error) {
-	path, err := configPath()
+	path, err := Path()
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func Load() (*Config, error) {
 }
 
 func Save(cfg *Config) error {
-	path, err := configPath()
+	path, err := Path()
 	if err != nil {
 		return err
 	}
