@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"text/tabwriter"
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -59,27 +57,26 @@ var flagsListCmd = &cobra.Command{
 		}
 
 		if len(flags) == 0 {
-			fmt.Println("No flags found.")
+			fmt.Println(ui.Info("No flags found."))
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "KEY\tNAME\tTYPE\tENVIRONMENTS")
-		for _, f := range flags {
+		rows := make([][]string, len(flags))
+		for i, f := range flags {
 			envSummary := ""
 			for _, e := range f.Environments {
-				status := "off"
+				status := ui.Dim("off")
 				if e.Enabled {
-					status = "on"
+					status = ui.Green("on")
 				}
 				if envSummary != "" {
 					envSummary += ", "
 				}
 				envSummary += e.EnvironmentKey + ":" + status
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", f.Key, f.Name, f.Type, envSummary)
+			rows[i] = []string{f.Key, f.Name, ui.Dim(f.Type), envSummary}
 		}
-		w.Flush()
+		fmt.Println(ui.Table([]string{"Key", "Name", "Type", "Environments"}, rows))
 		return nil
 	},
 }
@@ -104,21 +101,20 @@ var flagsCreateCmd = &cobra.Command{
 
 		body := map[string]any{
 			"key":  key,
-			"name": key, // default name = key
+			"name": key,
 			"type": flagType,
 		}
 		if description != "" {
 			body["description"] = description
 		}
 
-		// Set default value based on type
 		switch flagType {
 		case "boolean":
 			body["defaultValue"] = true
 		case "string":
 			body["defaultValue"] = ""
 		case "number":
-			body["defaultValue"] = json.Number("0")
+			body["defaultValue"] = 0
 		case "json":
 			body["defaultValue"] = map[string]any{}
 		}
@@ -128,7 +124,8 @@ var flagsCreateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create flag: %w", err)
 		}
 
-		fmt.Printf("Created flag %q (%s) with %d environments\n", flag.Key, flag.Type, len(flag.Environments))
+		fmt.Println(ui.Success(fmt.Sprintf("Created flag %s %s with %d environments",
+			ui.Bold(flag.Key), ui.Dim("("+flag.Type+")"), len(flag.Environments))))
 		return nil
 	},
 }
@@ -153,7 +150,6 @@ var flagsToggleCmd = &cobra.Command{
 			return err
 		}
 
-		// List flags to find the one we want
 		flags, err := client.ListFlags(project)
 		if err != nil {
 			return fmt.Errorf("failed to list flags: %w", err)
@@ -170,7 +166,6 @@ var flagsToggleCmd = &cobra.Command{
 			return fmt.Errorf("flag %q not found in project", key)
 		}
 
-		// Find the flag environment
 		var targetFE *api.FlagEnv
 		for i, fe := range targetFlag.Environments {
 			if fe.EnvironmentKey == env {
@@ -182,17 +177,16 @@ var flagsToggleCmd = &cobra.Command{
 			return fmt.Errorf("environment %q not found for flag %q", env, key)
 		}
 
-		// Toggle
 		newState := !targetFE.Enabled
 		if err := client.ToggleFlag(targetFE.ID, newState); err != nil {
 			return fmt.Errorf("failed to toggle flag: %w", err)
 		}
 
-		state := "OFF"
+		state := ui.Red("OFF")
 		if newState {
-			state = "ON"
+			state = ui.Green("ON")
 		}
-		fmt.Printf("Flag %q is now %s in %s\n", key, state, env)
+		fmt.Println(ui.Success(fmt.Sprintf("Flag %s is now %s in %s", ui.Bold(key), state, ui.Cyan(env))))
 		return nil
 	},
 }

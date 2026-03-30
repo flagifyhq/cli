@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -18,24 +19,24 @@ var configCmd = &cobra.Command{
 
 		apiURL := cfg.APIUrl
 		if apiURL == "" {
-			apiURL = "https://api.flagify.dev (default)"
+			apiURL = "https://api.flagify.dev " + ui.Dim("(default)")
 		}
-		fmt.Printf("API URL:      %s\n", apiURL)
+		fmt.Println(ui.KeyValue("API URL:", apiURL))
 
 		project := cfg.Project
 		if project == "" {
-			project = "(not set)"
+			project = ui.Dim("(not set)")
 		}
-		fmt.Printf("Project:      %s\n", project)
+		fmt.Println(ui.KeyValue("Project:", project))
 
+		loggedIn := ui.Red("no")
 		if cfg.IsLoggedIn() {
-			fmt.Printf("Logged in:    yes\n")
-		} else {
-			fmt.Printf("Logged in:    no\n")
+			loggedIn = ui.Green("yes")
 		}
+		fmt.Println(ui.KeyValue("Logged in:", loggedIn))
 
 		path, _ := config.Path()
-		fmt.Printf("Config file:  %s\n", path)
+		fmt.Println(ui.KeyValue("Config file:", ui.Dim(path)))
 
 		return nil
 	},

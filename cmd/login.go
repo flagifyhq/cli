@@ -8,6 +8,7 @@ import (
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -19,17 +20,17 @@ var loginCmd = &cobra.Command{
 		cfg, _ := config.Load()
 
 		if cfg.IsLoggedIn() {
-			fmt.Println("Already logged in. Use 'flagify logout' to sign out first.")
+			fmt.Println(ui.Info("Already logged in. Use 'flagify logout' to sign out first."))
 			return nil
 		}
 
 		reader := bufio.NewReader(os.Stdin)
 
-		fmt.Print("Email: ")
+		fmt.Printf("%s %s ", ui.Arrow(), ui.Bold("Email:"))
 		email, _ := reader.ReadString('\n')
 		email = strings.TrimSpace(email)
 
-		fmt.Print("Password: ")
+		fmt.Printf("%s %s ", ui.Arrow(), ui.Bold("Password:"))
 		passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			return fmt.Errorf("failed to read password: %w", err)
@@ -63,9 +64,9 @@ var loginCmd = &cobra.Command{
 			name = n
 		}
 		if name != "" {
-			fmt.Printf("Logged in as %s (%s)\n", name, email)
+			fmt.Println(ui.Success(fmt.Sprintf("Logged in as %s %s", ui.Bold(name), ui.Dim("("+email+")"))))
 		} else {
-			fmt.Printf("Logged in as %s\n", email)
+			fmt.Println(ui.Success(fmt.Sprintf("Logged in as %s", ui.Bold(email))))
 		}
 		return nil
 	},
@@ -84,7 +85,7 @@ var logoutCmd = &cobra.Command{
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
-		fmt.Println("Logged out.")
+		fmt.Println(ui.Success("Logged out."))
 		return nil
 	},
 }

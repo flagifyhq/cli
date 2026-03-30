@@ -2,9 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
 
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -28,16 +27,15 @@ var workspacesListCmd = &cobra.Command{
 		}
 
 		if len(workspaces) == 0 {
-			fmt.Println("No workspaces found.")
+			fmt.Println(ui.Info("No workspaces found."))
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tSLUG\tPLAN")
-		for _, ws := range workspaces {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", ws.ID, ws.Name, ws.Slug, ws.Plan)
+		rows := make([][]string, len(workspaces))
+		for i, ws := range workspaces {
+			rows[i] = []string{ui.Dim(ws.ID), ws.Name, ws.Slug, ws.Plan}
 		}
-		w.Flush()
+		fmt.Println(ui.Table([]string{"ID", "Name", "Slug", "Plan"}, rows))
 		return nil
 	},
 }

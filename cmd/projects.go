@@ -2,9 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
 
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -33,16 +32,15 @@ var projectsListCmd = &cobra.Command{
 		}
 
 		if len(projects) == 0 {
-			fmt.Println("No projects found.")
+			fmt.Println(ui.Info("No projects found."))
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tSLUG")
-		for _, p := range projects {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", p.ID, p.Name, p.Slug)
+		rows := make([][]string, len(projects))
+		for i, p := range projects {
+			rows[i] = []string{ui.Dim(p.ID), p.Name, p.Slug}
 		}
-		w.Flush()
+		fmt.Println(ui.Table([]string{"ID", "Name", "Slug"}, rows))
 		return nil
 	},
 }
@@ -62,18 +60,17 @@ var projectsGetCmd = &cobra.Command{
 			return fmt.Errorf("failed to get project: %w", err)
 		}
 
-		fmt.Printf("ID:        %s\n", project.ID)
-		fmt.Printf("Name:      %s\n", project.Name)
-		fmt.Printf("Slug:      %s\n", project.Slug)
+		fmt.Println(ui.KeyValue("ID:", ui.Dim(project.ID)))
+		fmt.Println(ui.KeyValue("Name:", project.Name))
+		fmt.Println(ui.KeyValue("Slug:", project.Slug))
 
 		if len(project.Environments) > 0 {
-			fmt.Println("\nEnvironments:")
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "  ID\tKEY\tNAME")
-			for _, e := range project.Environments {
-				fmt.Fprintf(w, "  %s\t%s\t%s\n", e.ID, e.Key, e.Name)
+			fmt.Printf("\n  %s\n", ui.Bold("Environments"))
+			rows := make([][]string, len(project.Environments))
+			for i, e := range project.Environments {
+				rows[i] = []string{ui.Dim(e.ID), e.Key, e.Name}
 			}
-			w.Flush()
+			fmt.Println(ui.Table([]string{"ID", "Key", "Name"}, rows))
 		}
 
 		return nil
