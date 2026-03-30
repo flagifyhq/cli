@@ -1,0 +1,66 @@
+version: 2
+
+project_name: flagify
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/flagify
+    binary: flagify
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/flagifyhq/cli/cmd.Version={{.Version}}
+      - -X github.com/flagifyhq/cli/cmd.Commit={{.ShortCommit}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: flagifyhq
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://flagify.dev"
+    description: "Flagify CLI — manage feature flags from the terminal"
+    license: "MIT"
+    install: |
+      bin.install "flagify"
+    test: |
+      system "#{bin}/flagify", "version"
+
+release:
+  github:
+    owner: flagifyhq
+    name: cli
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"

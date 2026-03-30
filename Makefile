@@ -6,7 +6,7 @@ VERSION ?= dev
 COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 LDFLAGS = -ldflags "-X github.com/flagifyhq/cli/cmd.Version=$(VERSION) -X github.com/flagifyhq/cli/cmd.Commit=$(COMMIT)"
 
-.PHONY: build run install clean test lint
+.PHONY: build run install clean test lint release-dry
 
 build:
 	go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN)
@@ -18,10 +18,13 @@ install:
 	go install $(LDFLAGS) $(MAIN)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) dist/
 
 test:
 	go test ./...
 
 lint:
 	go vet ./...
+
+release-dry:
+	goreleaser release --snapshot --clean

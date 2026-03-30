@@ -1,0 +1,29 @@
+{
+  "name": "@flagify/cli",
+  "version": "0.0.0",
+  "description": "Flagify CLI — manage feature flags from the terminal",
+  "license": "MIT",
+  "bin": {
+    "flagify": "bin/flagify"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flagifyhq/cli"
+  },
+  "homepage": "https://flagify.dev",
+  "keywords": [
+    "feature-flags",
+    "flagify",
+    "cli"
+  ],
+  "files": [
+    "bin/",
+    "install.js"
+  ],
+  "dependencies": {
+    "tar": "^7.5.13"
+  }
+}
