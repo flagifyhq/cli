@@ -257,6 +257,44 @@ flagify keys revoke -p proj_xxx -e development
 
 ---
 
+### `flagify ai-setup`
+
+Generate AI tool config files for your project. Creates config files so AI coding tools (Claude Code, Cursor, GitHub Copilot, Windsurf) understand your Flagify setup.
+
+```bash
+flagify ai-setup
+```
+
+Generate for a specific tool:
+
+```bash
+flagify ai-setup --tool cursor
+```
+
+By default, generated configs tell the AI tool to run `flagify flags list` for live data. Use `--include-flags` to also embed a snapshot of your current flags:
+
+```bash
+flagify ai-setup --include-flags
+```
+
+> **Note:** The snapshot is a point-in-time copy. The generated config always includes a `flagify flags list` instruction so the AI tool can fetch live data regardless.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tool` | -- | Generate for a specific tool (claude, cursor, copilot, windsurf) |
+| `--include-flags` | `false` | Embed a snapshot of current flags (marked as potentially outdated) |
+
+**Files generated per tool:**
+
+| Tool | Files |
+|------|-------|
+| Claude Code | `CLAUDE.md` (appends), `.claude/commands/flagify-create.md`, `.claude/commands/flagify-toggle.md`, `.claude/commands/flagify-list.md` |
+| Cursor | `.cursorrules` |
+| GitHub Copilot | `.github/copilot-instructions.md` |
+| Windsurf | `.windsurfrules` |
+
+---
+
 ### `flagify version`
 
 Print the CLI version and build info.

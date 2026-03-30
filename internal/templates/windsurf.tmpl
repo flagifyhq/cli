@@ -1,0 +1,22 @@
+# Flagify Feature Flags
+
+Project uses Flagify for feature management.
+SDK: @flagify/node (server), @flagify/react (client)
+
+## Patterns
+- Boolean flags: await flagify.isEnabled('flag-name', { userId })
+- Variants: await flagify.getVariant('flag-name', { userId })
+- Config: await flagify.getValue('flag-name', { userId }, fallback)
+- React: const enabled = useFlag('flag-name')
+
+## Conventions
+- Flag names: kebab-case ('new-feature')
+- Always provide userId in context
+- Always handle both states
+- Fallback values required for getValue()
+- To check current flags, run: `npx flagify flags list`
+{{- if .FlagsContext}}
+
+## Flags snapshot (may be outdated — run the command above for live data)
+{{.FlagsContext}}
+{{- end}}
