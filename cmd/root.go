@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -20,4 +21,6 @@ func init() {
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Project key")
 	rootCmd.PersistentFlags().StringP("environment", "e", "", "Environment (dev, staging, prod)")
 	rootCmd.PersistentFlags().BoolP("yes", "y", false, "Skip confirmation prompts")
+
+	ui.ApplyCustomHelp(rootCmd)
 }
