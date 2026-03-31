@@ -28,27 +28,29 @@ var environmentsPickCmd = &cobra.Command{
 			return err
 		}
 
-		project := resolveFlag(cmd, "project", cfg.Project)
-		if project == "" {
-			workspace := resolveFlag(cmd, "workspace", cfg.Workspace)
-			if workspace == "" {
+		projectID := resolveFlag(cmd, "project", cfg.ProjectID)
+		if projectID == "" {
+			workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
+			if workspaceID == "" {
 				ws, err := picker.PickWorkspace(client)
 				if err != nil {
 					return err
 				}
-				workspace = ws.ID
-				cfg.Workspace = workspace
+				workspaceID = ws.ID
+				cfg.Workspace = ws.Slug
+				cfg.WorkspaceID = ws.ID
 			}
 
-			proj, err := picker.PickProject(client, workspace)
+			proj, err := picker.PickProject(client, workspaceID)
 			if err != nil {
 				return err
 			}
-			project = proj.ID
-			cfg.Project = project
+			projectID = proj.ID
+			cfg.Project = proj.Slug
+			cfg.ProjectID = proj.ID
 		}
 
-		env, err := picker.PickEnvironment(client, project)
+		env, err := picker.PickEnvironment(client, projectID)
 		if err != nil {
 			return err
 		}

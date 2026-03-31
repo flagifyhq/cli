@@ -61,12 +61,13 @@ var workspacesPickCmd = &cobra.Command{
 			return err
 		}
 
-		cfg.Workspace = ws.ID
+		cfg.Workspace = ws.Slug
+		cfg.WorkspaceID = ws.ID
 		if err := config.Save(cfg); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
-		fmt.Println(ui.Success(fmt.Sprintf("Workspace set to %s %s", ui.Bold(ws.Name), ui.Dim("("+ws.ID+")"))))
+		fmt.Println(ui.Success(fmt.Sprintf("Workspace set to %s %s", ui.Bold(ws.Name), ui.Dim("("+ws.Slug+")"))))
 		return nil
 	},
 }

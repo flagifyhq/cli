@@ -184,6 +184,20 @@ func (c *Client) Refresh(refreshToken string) (*TokenPair, error) {
 	return &result, err
 }
 
+// Users
+
+type UserMe struct {
+	ID    string  `json:"id"`
+	Email string  `json:"email"`
+	Name  *string `json:"name,omitempty"`
+}
+
+func (c *Client) GetMe() (*UserMe, error) {
+	var result UserMe
+	err := c.Get("/v1/users/me", &result)
+	return &result, err
+}
+
 // Workspaces
 
 type Workspace struct {

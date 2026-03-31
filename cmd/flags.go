@@ -17,6 +17,24 @@ func resolveFlag(cmd *cobra.Command, name string, configValue string) string {
 	return configValue
 }
 
+// handleAccessError checks if an API error is a 403 Forbidden and clears
+// workspace/project/environment from config since the user lost access.
+func handleAccessError(err error) error {
+	if apiErr, ok := err.(*api.APIError); ok && apiErr.StatusCode == 403 {
+		cfg, loadErr := config.Load()
+		if loadErr == nil {
+			cfg.Workspace = ""
+			cfg.WorkspaceID = ""
+			cfg.Project = ""
+			cfg.ProjectID = ""
+			cfg.Environment = ""
+			config.Save(cfg)
+		}
+		return fmt.Errorf("access denied — you are not a member of this workspace. Config cleared, run 'flagify projects pick'")
+	}
+	return err
+}
+
 func getClient() (*api.Client, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -53,7 +71,7 @@ var flagsListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
 		}
@@ -65,7 +83,7 @@ var flagsListCmd = &cobra.Command{
 
 		flags, err := client.ListFlags(project)
 		if err != nil {
-			return fmt.Errorf("failed to list flags: %w", err)
+			return handleAccessError(err)
 		}
 
 		if len(flags) == 0 {
@@ -111,7 +129,11 @@ var flagsCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		projectName := cfg.Project
+		if projectName == "" {
+			projectName = project
+		}
 		flagType, _ := cmd.Flags().GetString("type")
 		description, _ := cmd.Flags().GetString("description")
 		if project == "" {
@@ -119,7 +141,7 @@ var flagsCreateCmd = &cobra.Command{
 		}
 
 		yes, _ := cmd.Flags().GetBool("yes")
-		confirmed, err := ui.Confirm(fmt.Sprintf("Create flag %s in project %s?", ui.Bold(key), ui.Cyan(project)), yes)
+		confirmed, err := ui.Confirm(fmt.Sprintf("Create flag %s in project %s?", ui.Bold(key), ui.Cyan(projectName)), yes)
 		if err != nil {
 			return err
 		}
@@ -155,7 +177,7 @@ var flagsCreateCmd = &cobra.Command{
 
 		flag, err := client.CreateFlag(project, body)
 		if err != nil {
-			return fmt.Errorf("failed to create flag: %w", err)
+			return handleAccessError(err)
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Created flag %s %s with %d environments",
@@ -179,7 +201,7 @@ var flagsToggleCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		all, _ := cmd.Flags().GetBool("all")
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
@@ -196,7 +218,7 @@ var flagsToggleCmd = &cobra.Command{
 
 		flags, err := client.ListFlags(project)
 		if err != nil {
-			return fmt.Errorf("failed to list flags: %w", err)
+			return handleAccessError(err)
 		}
 
 		var targetFlag *api.Flag
@@ -241,7 +263,7 @@ var flagsToggleCmd = &cobra.Command{
 
 			for _, fe := range targetFlag.Environments {
 				if err := client.ToggleFlag(fe.ID, newState); err != nil {
-					return fmt.Errorf("failed to toggle flag in %s: %w", fe.EnvironmentKey, err)
+					return handleAccessError(err)
 				}
 				state := ui.Red("OFF")
 				if newState {
@@ -280,7 +302,7 @@ var flagsToggleCmd = &cobra.Command{
 		}
 
 		if err := client.ToggleFlag(targetFE.ID, newState); err != nil {
-			return fmt.Errorf("failed to toggle flag: %w", err)
+			return handleAccessError(err)
 		}
 
 		state := ui.Red("OFF")

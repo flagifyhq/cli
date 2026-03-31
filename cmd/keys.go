@@ -12,7 +12,7 @@ import (
 func resolveEnvironmentID(client *api.Client, projectID, envKey string) (string, error) {
 	project, err := client.GetProject(projectID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get project: %w", err)
+		return "", handleAccessError(err)
 	}
 	for _, e := range project.Environments {
 		if e.Key == envKey {
@@ -35,7 +35,7 @@ var keysGenerateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
@@ -66,7 +66,7 @@ var keysGenerateCmd = &cobra.Command{
 
 		keys, err := client.GenerateKeys(envID)
 		if err != nil {
-			return fmt.Errorf("failed to generate keys: %w", err)
+			return handleAccessError(err)
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Generated API keys for %s", ui.Cyan(env))))
@@ -87,7 +87,7 @@ var keysListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
@@ -108,7 +108,7 @@ var keysListCmd = &cobra.Command{
 
 		keys, err := client.ListKeys(envID)
 		if err != nil {
-			return fmt.Errorf("failed to list keys: %w", err)
+			return handleAccessError(err)
 		}
 
 		if len(keys) == 0 {
@@ -138,7 +138,7 @@ var keysRevokeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
@@ -168,7 +168,7 @@ var keysRevokeCmd = &cobra.Command{
 		}
 
 		if err := client.RevokeKeys(envID); err != nil {
-			return fmt.Errorf("failed to revoke keys: %w", err)
+			return handleAccessError(err)
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Revoked all API keys for %s", ui.Cyan(env))))

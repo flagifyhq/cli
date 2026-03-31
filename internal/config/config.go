@@ -10,8 +10,11 @@ type Config struct {
 	AccessToken  string `json:"accessToken,omitempty"`
 	RefreshToken string `json:"refreshToken,omitempty"`
 	APIUrl       string `json:"apiUrl,omitempty"`
+	ConsoleUrl   string `json:"consoleUrl,omitempty"`
 	Workspace    string `json:"workspace,omitempty"`
+	WorkspaceID  string `json:"workspaceId,omitempty"`
 	Project      string `json:"project,omitempty"`
+	ProjectID    string `json:"projectId,omitempty"`
 	Environment  string `json:"environment,omitempty"`
 	Token        string `json:"token,omitempty"` // deprecated, kept for compat
 }
