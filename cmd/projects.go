@@ -22,8 +22,8 @@ var projectsListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		workspace := resolveFlag(cmd, "workspace", cfg.Workspace)
-		if workspace == "" {
+		workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
+		if workspaceID == "" {
 			return fmt.Errorf("--workspace is required (or run 'flagify workspaces pick')")
 		}
 
@@ -32,9 +32,9 @@ var projectsListCmd = &cobra.Command{
 			return err
 		}
 
-		projects, err := client.ListProjects(workspace)
+		projects, err := client.ListProjects(workspaceID)
 		if err != nil {
-			return fmt.Errorf("failed to list projects: %w", err)
+			return handleAccessError(err)
 		}
 
 		if len(projects) == 0 {
@@ -68,7 +68,7 @@ var projectsGetCmd = &cobra.Command{
 
 		project, err := client.GetProject(args[0])
 		if err != nil {
-			return fmt.Errorf("failed to get project: %w", err)
+			return handleAccessError(err)
 		}
 
 		fmt.Println(ui.KeyValue("ID:", ui.Dim(project.ID)))
@@ -102,27 +102,29 @@ var projectsPickCmd = &cobra.Command{
 			return err
 		}
 
-		workspace := resolveFlag(cmd, "workspace", cfg.Workspace)
-		if workspace == "" {
+		workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
+		if workspaceID == "" {
 			ws, err := picker.PickWorkspace(client)
 			if err != nil {
 				return err
 			}
-			workspace = ws.ID
-			cfg.Workspace = workspace
+			workspaceID = ws.ID
+			cfg.Workspace = ws.Slug
+			cfg.WorkspaceID = ws.ID
 		}
 
-		project, err := picker.PickProject(client, workspace)
+		project, err := picker.PickProject(client, workspaceID)
 		if err != nil {
 			return err
 		}
 
-		cfg.Project = project.ID
+		cfg.Project = project.Slug
+		cfg.ProjectID = project.ID
 		if err := config.Save(cfg); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
-		fmt.Println(ui.Success(fmt.Sprintf("Project set to %s %s", ui.Bold(project.Name), ui.Dim("("+project.ID+")"))))
+		fmt.Println(ui.Success(fmt.Sprintf("Project set to %s %s", ui.Bold(project.Name), ui.Dim("("+project.Slug+")"))))
 		return nil
 	},
 }

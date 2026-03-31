@@ -84,9 +84,9 @@ func fetchFlagsContext() (string, error) {
 		return "", fmt.Errorf("not logged in. Run %s first", ui.Bold("flagify login"))
 	}
 
-	project := cfg.Project
-	if project == "" {
-		return "", fmt.Errorf("no project configured. Run %s first", ui.Bold("flagify config set project <slug>"))
+	projectID := cfg.ProjectID
+	if projectID == "" {
+		return "", fmt.Errorf("no project configured. Run %s first", ui.Bold("flagify projects pick"))
 	}
 
 	client := api.NewClient(cfg.GetToken())
@@ -94,9 +94,9 @@ func fetchFlagsContext() (string, error) {
 		client.SetBaseURL(cfg.APIUrl)
 	}
 
-	flags, err := client.ListFlags(project)
+	flags, err := client.ListFlags(projectID)
 	if err != nil {
-		return "", err
+		return "", handleAccessError(err)
 	}
 	if len(flags) == 0 {
 		return "", nil
