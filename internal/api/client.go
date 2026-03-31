@@ -277,6 +277,69 @@ func (c *Client) ToggleFlag(flagEnvID string, enabled bool) error {
 	}, nil)
 }
 
+
+// Segments
+
+type Segment struct {
+	ID        string        `json:"id"`
+	ProjectID string        `json:"projectId"`
+	Name      string        `json:"name"`
+	MatchType string        `json:"matchType"`
+	Rules     []SegmentRule `json:"rules,omitempty"`
+}
+
+type SegmentRule struct {
+	Attribute string `json:"attribute"`
+	Operator  string `json:"operator"`
+	Value     any    `json:"value"`
+}
+
+func (c *Client) ListSegments(projectID string) ([]Segment, error) {
+	var result []Segment
+	err := c.Get("/v1/projects/"+projectID+"/segments", &result)
+	return result, err
+}
+
+func (c *Client) CreateSegment(projectID string, body map[string]any) (*Segment, error) {
+	var result Segment
+	err := c.Post("/v1/projects/"+projectID+"/segments", body, &result)
+	return &result, err
+}
+
+func (c *Client) DeleteSegment(segmentID string) error {
+	return c.Delete("/v1/segments/" + segmentID)
+}
+
+// Targeting
+
+type TargetingRule struct {
+	ID                string               `json:"id"`
+	Priority          int                  `json:"priority"`
+	SegmentID         *string              `json:"segmentId,omitempty"`
+	ValueOverride     any                  `json:"valueOverride,omitempty"`
+	RolloutPercentage *int                 `json:"rolloutPercentage,omitempty"`
+	Enabled           bool                 `json:"enabled"`
+	Conditions        []TargetingCondition `json:"conditions,omitempty"`
+}
+
+type TargetingCondition struct {
+	Attribute string `json:"attribute"`
+	Operator  string `json:"operator"`
+	Value     any    `json:"value"`
+}
+
+func (c *Client) GetTargetingRules(flagEnvID string) ([]TargetingRule, error) {
+	var result []TargetingRule
+	err := c.Get("/v1/flag-environments/"+flagEnvID+"/targeting-rules", &result)
+	return result, err
+}
+
+func (c *Client) SetTargetingRules(flagEnvID string, body map[string]any) ([]TargetingRule, error) {
+	var result []TargetingRule
+	err := c.Put("/v1/flag-environments/"+flagEnvID+"/targeting-rules", body, &result)
+	return result, err
+}
+
 // API Keys
 
 type APIKey struct {

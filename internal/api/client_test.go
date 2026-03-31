@@ -358,3 +358,118 @@ func TestClientNoToken(t *testing.T) {
 	err := client.Get("/v1/test", &result)
 	require.NoError(t, err)
 }
+
+func TestClientListSegments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/projects/proj1/segments", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.Segment{
+			{ID: "seg1", Name: "Pro Users", MatchType: "ALL", Rules: []api.SegmentRule{
+				{Attribute: "plan", Operator: "equals", Value: "pro"},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	segments, err := client.ListSegments("proj1")
+	require.NoError(t, err)
+	assert.Len(t, segments, 1)
+	assert.Equal(t, "Pro Users", segments[0].Name)
+	assert.Equal(t, "ALL", segments[0].MatchType)
+	assert.Len(t, segments[0].Rules, 1)
+}
+
+func TestClientCreateSegment(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/projects/proj1/segments", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(api.Segment{
+			ID: "seg2", Name: "Beta Testers", MatchType: "ANY",
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	seg, err := client.CreateSegment("proj1", map[string]any{
+		"name": "Beta Testers", "matchType": "ANY",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Beta Testers", seg.Name)
+}
+
+func TestClientDeleteSegment(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "DELETE", r.Method)
+		assert.Equal(t, "/v1/segments/seg1", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	err := client.DeleteSegment("seg1")
+	require.NoError(t, err)
+}
+
+func TestClientGetTargetingRules(t *testing.T) {
+	segID := "seg1"
+	rollout := 50
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/flag-environments/fe1/targeting-rules", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.TargetingRule{
+			{ID: "tr1", Priority: 0, SegmentID: &segID, ValueOverride: "pro-value", Enabled: true},
+			{ID: "tr2", Priority: 1, RolloutPercentage: &rollout, Enabled: true,
+				Conditions: []api.TargetingCondition{
+					{Attribute: "country", Operator: "equals", Value: "US"},
+				}},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	rules, err := client.GetTargetingRules("fe1")
+	require.NoError(t, err)
+	assert.Len(t, rules, 2)
+	assert.Equal(t, "seg1", *rules[0].SegmentID)
+	assert.Equal(t, 50, *rules[1].RolloutPercentage)
+	assert.Len(t, rules[1].Conditions, 1)
+}
+
+func TestClientSetTargetingRules(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "PUT", r.Method)
+		assert.Equal(t, "/v1/flag-environments/fe1/targeting-rules", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.TargetingRule{
+			{ID: "tr1", Priority: 0, Enabled: true, ValueOverride: "catch-all"},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	result, err := client.SetTargetingRules("fe1", map[string]any{
+		"rules": []map[string]any{{"valueOverride": "catch-all", "enabled": true}},
+	})
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+}
