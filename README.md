@@ -313,8 +313,11 @@ The CLI stores configuration in `~/.flagify/config.json`:
   "accessToken": "eyJhbGci...",
   "refreshToken": "eyJhbGci...",
   "apiUrl": "https://api.flagify.dev",
-  "workspace": "ws_xxx",
-  "project": "proj_xxx",
+  "consoleUrl": "https://console.flagify.dev",
+  "workspace": "acme-corp",
+  "workspaceId": "01J5K8RQXHNZ4VMKD3GY7PSABET",
+  "project": "web-app",
+  "projectId": "01J5KBC3XPQR7WFMN4HY6TDASEV",
   "environment": "development"
 }
 ```
@@ -324,8 +327,11 @@ The CLI stores configuration in `~/.flagify/config.json`:
 | `accessToken` | JWT access token (set via `flagify login`) |
 | `refreshToken` | JWT refresh token (set via `flagify login`) |
 | `apiUrl` | API base URL (default: `https://api.flagify.dev`) |
-| `workspace` | Default workspace ID (set via `flagify workspaces pick`) |
-| `project` | Default project key (set via `flagify projects pick`) |
+| `consoleUrl` | Console URL (set via `flagify login`) |
+| `workspace` | Default workspace slug (set via `flagify workspaces pick`) |
+| `workspaceId` | Default workspace ID (set via `flagify workspaces pick`) |
+| `project` | Default project slug (set via `flagify projects pick`) |
+| `projectId` | Default project ID (set via `flagify projects pick`) |
 | `environment` | Default environment key (set via `flagify environments pick`) |
 
 View current config:
@@ -333,6 +339,20 @@ View current config:
 ```bash
 flagify config
 ```
+
+Set a value:
+
+```bash
+flagify config set environment staging
+```
+
+Get a single value (useful for scripts):
+
+```bash
+flagify config get project
+```
+
+Valid keys: `api-url`, `workspace`, `project`, `environment`
 
 ## Shell completions
 

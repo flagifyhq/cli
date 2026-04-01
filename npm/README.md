@@ -60,6 +60,8 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify keys revoke` | Revoke all API keys for environment |
 | `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Use `--include-flags` for a snapshot |
 | `flagify config` | Show current configuration |
+| `flagify config set <key> <value>` | Set a config value (api-url, workspace, project, environment) |
+| `flagify config get <key>` | Get a single config value |
 | `flagify completion` | Generate shell completion scripts |
 | `flagify version` | Print CLI version |
 
