@@ -232,6 +232,10 @@ var flagsToggleCmd = &cobra.Command{
 			return fmt.Errorf("flag %q not found in project", key)
 		}
 
+		if targetFlag.Type != "boolean" {
+			return fmt.Errorf("flag %q is of type %q — toggle only works with boolean flags", key, targetFlag.Type)
+		}
+
 		if all {
 			if len(targetFlag.Environments) == 0 {
 				return fmt.Errorf("no environments found for flag %q", key)

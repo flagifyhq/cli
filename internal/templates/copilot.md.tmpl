@@ -4,17 +4,32 @@ This project uses the Flagify SDK for feature flag management.
 
 ## When writing code that involves feature flags:
 
-1. Import from @flagify/node (server) or @flagify/react (client)
-2. Use isEnabled(flagName, context) for boolean flags
-3. Use getVariant(flagName, context) for A/B tests
-4. Use getValue(flagName, context, fallback) for config values
-5. Always include userId in the context object
-6. Always handle both enabled and disabled states
-7. Flag names are kebab-case: 'feature-name'
+1. Import from `@flagify/node` (server) or `@flagify/react` (client)
+2. Use `isEnabled(flagName)` for boolean flags
+3. Use `getValue(flagName, fallback)` for typed values — fallback is required
+4. Use `getVariant(flagName, fallback)` for A/B test variants
+5. Use `evaluate(flagName, { userId })` for server-side evaluation with user context
+6. Use `useFlag()`, `useFlagValue()`, `useVariant()` in React components
+7. Always handle both enabled and disabled states
+8. Flag names: kebab-case only — `feature-name` (no camelCase, snake_case, or spaces)
+9. Call `flagify.destroy()` when done to close the SSE connection
+
+## Key types
+- `pk_*` (publishable key) — safe for client/browser
+- `sk_*` (secret key) — server-side only, never expose or commit
+
+## CLI
+
+Always pass `-y` to skip confirmation prompts when running non-interactively.
+
+- Manage flags: `flagify flags list`, `flagify flags create <key> -y --type boolean|string|number|json`, `flagify flags toggle <key> -y --environment <env>`
+- API keys: `flagify keys list --environment <env>`, `flagify keys generate -y --environment <env>`, `flagify keys revoke -y --environment <env>`
+- Configuration: `flagify config`, `flagify config set <key> <value>`
+- Valid config keys: api-url, workspace, project, environment
 
 ## Environments: development, staging, production
 
-To check current flags, run: `npx flagify flags list`
+To check current flags, run: `flagify flags list`
 {{- if .FlagsContext}}
 
 ## Flags snapshot (may be outdated — run the command above for live data)

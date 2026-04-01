@@ -4,17 +4,47 @@ Project uses Flagify for feature management.
 SDK: @flagify/node (server), @flagify/react (client)
 
 ## Patterns
-- Boolean flags: await flagify.isEnabled('flag-name', { userId })
-- Variants: await flagify.getVariant('flag-name', { userId })
-- Config: await flagify.getValue('flag-name', { userId }, fallback)
-- React: const enabled = useFlag('flag-name')
+
+Node.js:
+```typescript
+const flagify = new Flagify({ projectKey: '...', publicKey: 'pk_dev_...' })
+await flagify.ready()
+flagify.isEnabled('flag-name')                    // boolean
+flagify.getValue('flag-name', fallback)           // typed value, fallback required
+flagify.getVariant('flag-name', 'control')        // A/B variant
+await flagify.evaluate('flag-name', { userId })   // server-side with user context
+flagify.destroy()                                 // clean up SSE
+```
+
+React:
+```typescript
+// Wrap with <FlagifyProvider projectKey="..." publicKey="pk_dev_...">
+const enabled = useFlag('flag-name')
+const value = useFlagValue<T>('flag-name', fallback) // fallback required
+const variant = useVariant('flag-name', 'control')
+const ready = useIsReady()
+```
+
+## CLI
+
+Always pass -y to skip confirmation prompts when running non-interactively.
+
+- Flags: flagify flags list | flagify flags create <key> -y --type boolean|string|number|json | flagify flags toggle <key> -y --environment <env>
+- Keys: flagify keys list --environment <env> | flagify keys generate -y --environment <env> | flagify keys revoke -y --environment <env>
+- Config: flagify config | flagify config set <key> <value>
+- Valid config keys: api-url, workspace, project, environment
+
+## Key types
+- pk_* (publishable) — safe for client/browser
+- sk_* (secret) — server-side only, never expose
 
 ## Conventions
-- Flag names: kebab-case ('new-feature')
-- Always provide userId in context
-- Always handle both states
-- Fallback values required for getValue()
-- To check current flags, run: `npx flagify flags list`
+- Flag names: kebab-case only — new-feature (no camelCase, snake_case, spaces)
+- Group related flags: checkout-*, onboarding-*
+- Always handle both flag states
+- Fallback values required for getValue() / useFlagValue()
+
+To check current flags, run: flagify flags list
 {{- if .FlagsContext}}
 
 ## Flags snapshot (may be outdated — run the command above for live data)

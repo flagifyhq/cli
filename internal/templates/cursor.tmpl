@@ -4,36 +4,50 @@ This project uses Flagify (@flagify/node, @flagify/react) for feature management
 
 ## SDK Patterns
 
-When creating flag checks:
-- Import from '@flagify/node' for server code, '@flagify/react' for client
-- Always pass a user context with at least userId
-- Always provide a fallback value for getValue()
-- Use isEnabled() for boolean flags
-- Use getVariant() for multivariate/A/B test flags
-- Use getValue() for remote config values
-
-## Code Patterns
-
-Server-side flag evaluation:
+**Node.js:**
 ```typescript
-const isEnabled = await flagify.isEnabled('flag-name', {
-  userId: user.id,
-  attributes: { plan: user.plan }
-});
+import { Flagify } from '@flagify/node'
+const flagify = new Flagify({ projectKey: '...', publicKey: 'pk_dev_...' })
+await flagify.ready()
+const isOn = flagify.isEnabled('flag-name')
+const value = flagify.getValue('flag-name', 'fallback') // fallback required
+const variant = flagify.getVariant('flag-name', 'control')
+const result = await flagify.evaluate('flag-name', { userId: 'u_123' })
+flagify.destroy()
 ```
 
-React component with flag:
+**React:**
 ```typescript
-import { useFlag } from '@flagify/react';
-const showFeature = useFlag('flag-name');
+import { FlagifyProvider, useFlag, useFlagValue, useVariant, useIsReady } from '@flagify/react'
+// Wrap app with <FlagifyProvider projectKey="..." publicKey="pk_dev_...">
+const enabled = useFlag('flag-name')
+const value = useFlagValue<string>('flag-name', 'default') // fallback required
+const variant = useVariant('flag-name', 'control')
+const ready = useIsReady()
 ```
+
+## CLI
+
+Always pass `-y` to skip confirmation prompts when running non-interactively (scripts, AI tools).
+
+- Manage flags: `flagify flags list`, `flagify flags create <key> -y --type boolean|string|number|json`, `flagify flags toggle <key> -y --environment <env>`
+- API keys: `flagify keys list --environment <env>`, `flagify keys generate -y --environment <env>`, `flagify keys revoke -y --environment <env>`
+- Configuration: `flagify config`, `flagify config set <key> <value>`
+- Valid config keys: api-url, workspace, project, environment
+
+## Key Types
+- `pk_*` (publishable) — safe for client/browser code
+- `sk_*` (secret) — server-side only, never expose
 
 ## Rules
-- Never hardcode flag values — always evaluate dynamically
-- Flag names use kebab-case: 'new-checkout-flow'
-- Group related flags with a shared prefix: 'checkout-*'
-- Always handle both flag states (enabled and disabled)
-- To check current flags, run: `npx flagify flags list`
+- Never hardcode flag values — always evaluate at runtime
+- Handle both enabled and disabled states
+- Fallback values required for getValue() and useFlagValue()
+- Flag names: kebab-case only — `new-checkout-flow` (no camelCase, snake_case, spaces)
+- Group related flags with a prefix: `checkout-*`, `onboarding-*`
+- Call flagify.destroy() to clean up SSE connection
+
+To check current flags: `flagify flags list`
 {{- if .FlagsContext}}
 
 ## Flags snapshot (may be outdated — run the command above for live data)
