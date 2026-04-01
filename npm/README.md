@@ -54,7 +54,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify environments pick` | Interactively select a default environment |
 | `flagify flags list` | List all flags in a project |
 | `flagify flags create` | Create a new feature flag |
-| `flagify flags toggle` | Enable or disable a flag (supports `--all`) |
+| `flagify flags toggle` | Enable or disable a flag (interactive picker if no key given, supports `--all`) |
 | `flagify keys generate` | Generate API key pair for environment |
 | `flagify keys list` | List API keys for environment |
 | `flagify keys revoke` | Revoke all API keys for environment |
