@@ -194,12 +194,18 @@ flagify flags create checkout-variant -p proj_xxx --type string --description "A
 
 ### `flagify flags toggle`
 
-Toggle a boolean flag on or off.
+Toggle a flag on or off. If no flag key is provided, an interactive picker lets you select from existing flags.
 
 ```bash
 flagify flags toggle my-feature -p proj_xxx
 flagify flags toggle dark-mode -p proj_xxx -e prod
 flagify flags toggle dark-mode -p proj_xxx --all
+```
+
+Run without a key to pick interactively:
+
+```bash
+flagify flags toggle -p proj_xxx
 ```
 
 | Flag | Short | Description |

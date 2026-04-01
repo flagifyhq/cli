@@ -5,6 +5,7 @@ import (
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/picker"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -189,14 +190,8 @@ var flagsCreateCmd = &cobra.Command{
 var flagsToggleCmd = &cobra.Command{
 	Use:   "toggle [key]",
 	Short: "Toggle a boolean flag on/off",
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return fmt.Errorf("missing flag key. Usage: flagify flags toggle <key>")
-		}
-		return cobra.ExactArgs(1)(cmd, args)
-	},
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		key := args[0]
 		cfg, err := config.Load()
 		if err != nil {
 			return err
@@ -222,19 +217,26 @@ var flagsToggleCmd = &cobra.Command{
 		}
 
 		var targetFlag *api.Flag
-		for i, f := range flags {
-			if f.Key == key {
-				targetFlag = &flags[i]
-				break
+		if len(args) == 0 {
+			picked, err := picker.PickFlag(flags, "")
+			if err != nil {
+				return err
+			}
+			targetFlag = picked
+		} else {
+			key := args[0]
+			for i, f := range flags {
+				if f.Key == key {
+					targetFlag = &flags[i]
+					break
+				}
+			}
+			if targetFlag == nil {
+				return fmt.Errorf("flag %q not found in project", key)
 			}
 		}
-		if targetFlag == nil {
-			return fmt.Errorf("flag %q not found in project", key)
-		}
 
-		if targetFlag.Type != "boolean" {
-			return fmt.Errorf("flag %q is of type %q — toggle only works with boolean flags", key, targetFlag.Type)
-		}
+		key := targetFlag.Key
 
 		if all {
 			if len(targetFlag.Environments) == 0 {
