@@ -1,6 +1,8 @@
-Toggle the flag "$FLAG_NAME" in the "$ENVIRONMENT" environment.
+Toggle the flag "$FLAG_NAME" in the "$ENVIRONMENT" environment (development, staging, production).
 
-Use the Flagify CLI:
+Use the Flagify CLI with `-y` to skip confirmation:
 ```
-flagify flags toggle $FLAG_NAME --environment $ENVIRONMENT
+flagify flags toggle $FLAG_NAME -y --environment $ENVIRONMENT
 ```
+
+Run `flagify flags list` first to see current state before toggling.
