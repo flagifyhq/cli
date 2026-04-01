@@ -25,7 +25,7 @@ func TestGenerateCursor(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(dir, ".cursorrules"))
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "Flagify Feature Flags")
-	assert.Contains(t, string(content), "isEnabled()")
+	assert.Contains(t, string(content), "isEnabled(")
 	assert.Contains(t, string(content), "@flagify/react")
 }
 

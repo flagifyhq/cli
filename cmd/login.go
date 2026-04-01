@@ -13,11 +13,46 @@ import (
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
+	"github.com/flagifyhq/cli/internal/picker"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+// maybeAutoSelect auto-selects workspace (if only one) and then picks a project.
+func maybeAutoSelect(cfg *config.Config) {
+	client := api.NewClient(cfg.AccessToken)
+	if cfg.APIUrl != "" {
+		client.SetBaseURL(cfg.APIUrl)
+	}
+
+	workspaces, err := client.ListWorkspaces()
+	if err != nil || len(workspaces) != 1 {
+		return
+	}
+
+	ws := workspaces[0]
+	cfg.Workspace = ws.Slug
+	cfg.WorkspaceID = ws.ID
+	if err := config.Save(cfg); err != nil {
+		return
+	}
+	fmt.Println(ui.Info(fmt.Sprintf("Workspace set to %s %s", ui.Bold(ws.Name), ui.Dim("("+ws.Slug+")"))))
+
+	project, err := picker.PickProject(client, ws.ID)
+	if err != nil {
+		return
+	}
+
+	cfg.Project = project.Slug
+	cfg.ProjectID = project.ID
+	if err := config.Save(cfg); err != nil {
+		return
+	}
+	fmt.Println(ui.Success(fmt.Sprintf("Project set to %s %s", ui.Bold(project.Name), ui.Dim("("+project.Slug+")"))))
+	fmt.Println(ui.Dim("To change project, run: flagify projects pick"))
+}
 
 const (
 	defaultConsoleURL      = "https://console.flagify.dev"
@@ -93,7 +128,7 @@ func loginBrowser(cfg *config.Config) error {
 	go server.Serve(listener)
 
 	// Open browser
-	authURL := fmt.Sprintf("%s/cli-auth?port=%d&device_id=%s", consoleURL, port, url.QueryEscape(deviceID))
+	authURL := fmt.Sprintf("%s/cli-auth?p=%d&did=%s", consoleURL, port, url.QueryEscape(deviceID))
 
 	fmt.Printf("%s Opening browser to authenticate...\n", ui.Arrow())
 	fmt.Printf("  %s\n\n", ui.Dim(authURL))
@@ -129,6 +164,7 @@ func loginBrowser(cfg *config.Config) error {
 		}
 
 		fmt.Println(ui.Success("Authenticated successfully."))
+		maybeAutoSelect(cfg)
 		return nil
 
 	case <-ctx.Done():
@@ -185,6 +221,7 @@ func loginClassic(cfg *config.Config) error {
 	} else {
 		fmt.Println(ui.Success(fmt.Sprintf("Logged in as %s", ui.Bold(email))))
 	}
+	maybeAutoSelect(cfg)
 	return nil
 }
 
