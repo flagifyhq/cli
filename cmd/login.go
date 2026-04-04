@@ -128,7 +128,7 @@ func loginBrowser(cfg *config.Config) error {
 	go server.Serve(listener)
 
 	// Open browser
-	authURL := fmt.Sprintf("%s/cli-auth?p=%d&did=%s", consoleURL, port, url.QueryEscape(deviceID))
+	authURL := fmt.Sprintf("%s/auth/cli-auth?p=%d&did=%s", consoleURL, port, url.QueryEscape(deviceID))
 
 	fmt.Printf("%s Opening browser to authenticate...\n", ui.Arrow())
 	fmt.Printf("  %s\n\n", ui.Dim(authURL))
