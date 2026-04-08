@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+	"unicode"
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
@@ -9,6 +13,25 @@ import (
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
+
+var kebabCaseRe = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+func toKebabCase(s string) string {
+	var result []rune
+	for i, r := range s {
+		if r == '_' || r == ' ' {
+			result = append(result, '-')
+		} else if unicode.IsUpper(r) {
+			if i > 0 && !unicode.IsUpper(rune(s[i-1])) {
+				result = append(result, '-')
+			}
+			result = append(result, unicode.ToLower(r))
+		} else {
+			result = append(result, r)
+		}
+	}
+	return strings.Trim(string(result), "-")
+}
 
 func resolveFlag(cmd *cobra.Command, name string, configValue string) string {
 	val, _ := cmd.Flags().GetString(name)
@@ -92,6 +115,16 @@ var flagsListCmd = &cobra.Command{
 			return nil
 		}
 
+		format, _ := cmd.Flags().GetString("format")
+		if format == "json" {
+			data, err := json.MarshalIndent(flags, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal flags: %w", err)
+			}
+			fmt.Println(string(data))
+			return nil
+		}
+
 		rows := make([][]string, len(flags))
 		for i, f := range flags {
 			envSummary := ""
@@ -122,7 +155,15 @@ var flagsCreateCmd = &cobra.Command{
 		if len(args) == 0 {
 			return fmt.Errorf("missing flag key. Usage: flagify flags create <key>")
 		}
-		return cobra.ExactArgs(1)(cmd, args)
+		if err := cobra.ExactArgs(1)(cmd, args); err != nil {
+			return err
+		}
+		key := args[0]
+		if !kebabCaseRe.MatchString(key) {
+			suggestion := toKebabCase(key)
+			return fmt.Errorf("flag key %q is not valid kebab-case. Try: %s", key, suggestion)
+		}
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
@@ -320,12 +361,84 @@ var flagsToggleCmd = &cobra.Command{
 	},
 }
 
+var flagsGetCmd = &cobra.Command{
+	Use:   "get [key]",
+	Short: "Get details for a specific flag",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		key := args[0]
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		if project == "" {
+			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+		}
+
+		client, err := getClient()
+		if err != nil {
+			return err
+		}
+
+		flags, err := client.ListFlags(project)
+		if err != nil {
+			return handleAccessError(err)
+		}
+
+		var flag *api.Flag
+		for i, f := range flags {
+			if f.Key == key {
+				flag = &flags[i]
+				break
+			}
+		}
+		if flag == nil {
+			return fmt.Errorf("flag %q not found in project", key)
+		}
+
+		format, _ := cmd.Flags().GetString("format")
+		if format == "json" {
+			data, err := json.MarshalIndent(flag, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal flag: %w", err)
+			}
+			fmt.Println(string(data))
+			return nil
+		}
+
+		fmt.Println(ui.KeyValue("Key", ui.Bold(flag.Key)))
+		fmt.Println(ui.KeyValue("Name", flag.Name))
+		fmt.Println(ui.KeyValue("Type", ui.Dim(flag.Type)))
+		fmt.Println()
+		if len(flag.Environments) > 0 {
+			rows := make([][]string, len(flag.Environments))
+			for i, e := range flag.Environments {
+				status := ui.Red("OFF")
+				if e.Enabled {
+					status = ui.Green("ON")
+				}
+				variants := "-"
+				if len(e.Variants) > 0 {
+					variants = fmt.Sprintf("%d variants", len(e.Variants))
+				}
+				rows[i] = []string{e.EnvironmentKey, status, variants}
+			}
+			fmt.Println(ui.Table([]string{"Environment", "Status", "Variants"}, rows))
+		}
+		return nil
+	},
+}
+
 func init() {
+	flagsListCmd.Flags().String("format", "table", "Output format (table, json)")
+	flagsGetCmd.Flags().String("format", "table", "Output format (table, json)")
 	flagsCreateCmd.Flags().StringP("type", "t", "boolean", "Flag type (boolean, string, number, json)")
 	flagsCreateCmd.Flags().String("description", "", "Flag description")
 	flagsToggleCmd.Flags().BoolP("all", "a", false, "Toggle in all environments")
 
 	flagsCmd.AddCommand(flagsListCmd)
+	flagsCmd.AddCommand(flagsGetCmd)
 	flagsCmd.AddCommand(flagsCreateCmd)
 	flagsCmd.AddCommand(flagsToggleCmd)
 	rootCmd.AddCommand(flagsCmd)

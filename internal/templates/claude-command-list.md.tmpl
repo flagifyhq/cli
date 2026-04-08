@@ -2,5 +2,10 @@ List all feature flags in the current project.
 
 Use the Flagify CLI:
 ```
-flagify flags list
+flagify flags list --format json
+```
+
+To get details for a specific flag:
+```
+flagify flags get <key> --format json
 ```

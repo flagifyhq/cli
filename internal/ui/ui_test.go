@@ -47,3 +47,16 @@ func TestTableWithRows(t *testing.T) {
 	assert.Contains(t, result, "Alpha")
 	assert.Contains(t, result, "Beta")
 }
+
+func TestConfirmSkip(t *testing.T) {
+	confirmed, err := ui.Confirm("test?", true)
+	assert.NoError(t, err)
+	assert.True(t, confirmed)
+}
+
+func TestConfirmNonTTY(t *testing.T) {
+	// In test environment, stdout is not a TTY, so Confirm should auto-approve
+	confirmed, err := ui.Confirm("test?", false)
+	assert.NoError(t, err)
+	assert.True(t, confirmed)
+}

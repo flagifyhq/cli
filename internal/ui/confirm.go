@@ -1,9 +1,14 @@
 package ui
 
-import "github.com/charmbracelet/huh"
+import (
+	"os"
+
+	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
+)
 
 func Confirm(message string, skip bool) (bool, error) {
-	if skip {
+	if skip || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return true, nil
 	}
 	var confirmed bool

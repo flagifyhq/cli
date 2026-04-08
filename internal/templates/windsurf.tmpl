@@ -27,10 +27,10 @@ const ready = useIsReady()
 
 ## CLI
 
-Always pass -y to skip confirmation prompts when running non-interactively.
+The CLI auto-detects non-TTY environments and skips confirmation prompts automatically.
 
-- Flags: flagify flags list | flagify flags create <key> -y --type boolean|string|number|json | flagify flags toggle <key> -y --environment <env>
-- Keys: flagify keys list --environment <env> | flagify keys generate -y --environment <env> | flagify keys revoke -y --environment <env>
+- Flags: flagify flags list [--format json] | flagify flags get <key> [--format json] | flagify flags create <key> --type boolean|string|number|json | flagify flags toggle <key> --environment <env>
+- Keys: flagify keys list --environment <env> | flagify keys generate --environment <env> | flagify keys revoke --environment <env>
 - Config: flagify config | flagify config set <key> <value>
 - Valid config keys: api-url, workspace, project, environment
 
