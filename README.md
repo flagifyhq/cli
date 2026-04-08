@@ -165,22 +165,49 @@ List all flags in a project.
 
 ```bash
 flagify flags list --project proj_xxx
-flagify flags list -p proj_xxx -e prod
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--project` | `-p` | Project key (required) |
-| `--environment` | `-e` | Environment (dev, staging, prod) |
+Output as JSON for scripts and AI tools:
+
+```bash
+flagify flags list -p proj_xxx --format json
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--project` | `-p` | -- | Project key (required) |
+| `--format` | -- | `table` | Output format (`table`, `json`) |
+
+---
+
+### `flagify flags get`
+
+Get details for a specific flag, including status per environment.
+
+```bash
+flagify flags get my-feature -p proj_xxx
+```
+
+```bash
+flagify flags get my-feature -p proj_xxx --format json
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--project` | `-p` | -- | Project key (required) |
+| `--format` | -- | `table` | Output format (`table`, `json`) |
 
 ---
 
 ### `flagify flags create`
 
-Create a new feature flag.
+Create a new feature flag. Flag keys must be kebab-case (e.g., `my-feature`).
 
 ```bash
 flagify flags create my-feature -p proj_xxx
+```
+
+```bash
 flagify flags create checkout-variant -p proj_xxx --type string --description "A/B test for checkout"
 ```
 
@@ -388,6 +415,8 @@ These flags are available on all commands:
 | `--environment` | `-e` | Environment (dev, staging, prod) |
 | `--yes` | `-y` | Skip confirmation prompts |
 | `--help` | `-h` | Help for any command |
+
+> **Non-interactive mode**: The CLI automatically detects when it's not running in a terminal (e.g., piped output, CI, AI agents) and skips confirmation prompts. You can also use `-y` to explicitly skip them.
 
 ## Development
 
