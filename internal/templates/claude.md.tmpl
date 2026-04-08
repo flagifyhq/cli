@@ -46,20 +46,23 @@ const ready = useIsReady()                                 // true once flags ar
 
 ## CLI Reference
 
-**Always pass `-y` when running non-interactively** (scripts, AI tools, CI). Without it, commands that require confirmation will hang waiting for TTY input.
+The CLI auto-detects non-TTY environments (scripts, AI tools, CI) and skips confirmation prompts automatically.
 
 ### Flags
 ```
 flagify flags list
-flagify flags create <key> -y --type boolean|string|number|json --description "..."
-flagify flags toggle <key> -y --environment development|staging|production
+flagify flags list --format json
+flagify flags get <key>
+flagify flags get <key> --format json
+flagify flags create <key> --type boolean|string|number|json --description "..."
+flagify flags toggle <key> --environment development|staging|production
 ```
 
 ### API Keys
 ```
 flagify keys list --environment development
-flagify keys generate -y --environment development   # outputs publicKey + secretKey once
-flagify keys revoke -y --environment development
+flagify keys generate --environment development   # outputs publicKey + secretKey once
+flagify keys revoke --environment development
 ```
 - Use `publicKey` (`pk_*`) in client/browser code — safe to expose
 - Use `secretKey` (`sk_*`) only server-side — never commit or expose

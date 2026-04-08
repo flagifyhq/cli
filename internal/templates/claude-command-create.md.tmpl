@@ -1,8 +1,13 @@
 Create a new feature flag called "$FLAG_NAME" with type "$FLAG_TYPE" (boolean, string, number, json).
 
-Use the Flagify CLI with `-y` to skip confirmation:
+Use the Flagify CLI:
 ```
-flagify flags create $FLAG_NAME -y --type $FLAG_TYPE --description "$DESCRIPTION"
+flagify flags create $FLAG_NAME --type $FLAG_TYPE --description "$DESCRIPTION"
 ```
 
-Flag name rules: kebab-case only (e.g. `new-checkout-flow`). No camelCase, snake_case, or spaces.
+After creating, verify the flag state:
+```
+flagify flags get $FLAG_NAME --format json
+```
+
+Flag name rules: kebab-case only (e.g. `new-checkout-flow`). No camelCase, snake_case, or spaces — the CLI validates this and suggests corrections.
