@@ -241,6 +241,10 @@ func (c *Client) GetProject(projectID string) (*Project, error) {
 	return &result, err
 }
 
+func (c *Client) DeleteProject(projectID string) error {
+	return c.Delete("/v1/projects/" + projectID)
+}
+
 // Flags
 
 type Flag struct {

@@ -51,6 +51,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify projects list` | List projects in a workspace |
 | `flagify projects get` | Show project details with environments |
 | `flagify projects pick` | Interactively select a default project |
+| `flagify projects delete <id>` | Delete a project and all its environments, flags, and segments (admin only) |
 | `flagify environments pick` | Interactively select a default environment |
 | `flagify flags list` | List all flags in a project (`--format json` for machine-readable output) |
 | `flagify flags get` | Get details for a specific flag with per-environment status |
