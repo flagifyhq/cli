@@ -8,11 +8,45 @@ This project uses the Flagify SDK for feature flag management.
 2. Use `isEnabled(flagName)` for boolean flags
 3. Use `getValue(flagName, fallback)` for typed values — fallback is required
 4. Use `getVariant(flagName, fallback)` for A/B test variants
-5. Use `evaluate(flagName, { userId })` for server-side evaluation with user context
-6. Use `useFlag()`, `useFlagValue()`, `useVariant()` in React components
-7. Always handle both enabled and disabled states
-8. Flag names: kebab-case only — `feature-name` (no camelCase, snake_case, or spaces)
-9. Call `flagify.destroy()` when done to close the SSE connection
+5. Use `useFlag()`, `useFlagValue()`, `useVariant()` in React components
+6. Always handle both enabled and disabled states
+7. Flag names: kebab-case only — `feature-name` (no camelCase, snake_case, or spaces)
+8. Call `flagify.destroy()` when done to close the SSE connection
+
+## User context & targeting
+
+For flags that should behave differently per user (admins, paid plans, beta cohorts, geographies, etc.):
+
+**React** — pass `options.user` ONCE to the Provider, mounted below your auth provider, with `key={user.id}` so the cache resyncs on login/logout. Then `useFlag('admin-tools')` returns the value already evaluated against targeting rules for the current user. Do NOT write a custom hook that calls `client.evaluate()` per flag — that bypasses the cache and is wrong.
+
+```tsx
+<FlagifyProvider
+  key={user?.id ?? 'anonymous'}
+  projectKey="..."
+  publicKey="pk_dev_..."
+  options={{"{{"}}
+    realtime: true,
+    user: user ? { id: user.id, role: user.role, email: user.email } : undefined,
+  {{"}}"}}
+>
+  <App />
+</FlagifyProvider>
+
+// Then in any component:
+const canSeeAdmin = useFlag('admin-tools')
+```
+
+**Node.js per-request** — for typical Express/Fastify/Next API routes, the client is created once at startup with no user; for each request, call `await flagify.evaluate('flag-name', { id, role, email, ...customAttrs })`. The user object uses `id` (not `userId`).
+
+```typescript
+const result = await flagify.evaluate('admin-tools', {
+  id: req.user.id,
+  role: req.user.role,
+})
+if (!result.value) return res.status(403).end()
+```
+
+Targeting rules themselves are configured server-side (Flagify dashboard or API), not in code. The SDK only forwards user attributes.
 
 ## Key types
 - `pk_*` (publishable key) — safe for client/browser
