@@ -2,6 +2,20 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.0.7](https://github.com/flagifyhq/cli/releases/tag/v1.0.7) — 2026-04-10
+
+> Version v1.0.6 was skipped to keep the CLI aligned with the `@flagify/*` SDKs, which were already at v1.0.6. The CLI jumps directly from v1.0.5 → v1.0.7.
+
+### Docs
+
+- `flagify ai-setup` templates now teach the correct user-context & targeting pattern across all four AI tools (Claude, Cursor, Copilot, Windsurf). Adds a "User context & targeting (CRITICAL)" section to the Claude template, explicit DO-NOT guidance against custom React hooks that call `client.evaluate()` per flag, and clarification that targeting rules live server-side and the SDK only forwards user attributes (#14)
+- The three Claude slash commands (`flagify-create`, `flagify-toggle`, `flagify-list`) now cross-reference the targeting section when relevant (#14)
+- Add CHANGELOG.md with full release history (#12, #13)
+
+### Bug Fixes
+
+- `flagify ai-setup` templates previously showed the user object as `{ userId: 'u_123' }`, which is the wire format. The correct developer-facing API is `{ id: 'u_123' }` — the SDK serializes `id` → `userId` internally. Fixed in all templates (#14)
+
 ## [v1.0.5](https://github.com/flagifyhq/cli/releases/tag/v1.0.5) — 2026-04-08
 
 ### Features
