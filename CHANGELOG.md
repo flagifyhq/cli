@@ -2,6 +2,12 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.1.0](https://github.com/flagifyhq/cli/releases/tag/v1.1.0) — 2026-04-10
+
+### Features
+
+- `flagify projects delete <project-id>` — permanently delete a project along with all its environments, flags, segments, and API keys. Requires the `admin` role or higher on the workspace. Prompts for confirmation unless `--yes`/`-y` is passed. If the deleted project was your saved default, the `project` and `projectId` config entries are cleared automatically (#16)
+
 ## [v1.0.7](https://github.com/flagifyhq/cli/releases/tag/v1.0.7) — 2026-04-10
 
 > Version v1.0.6 was skipped to keep the CLI aligned with the `@flagify/*` SDKs, which were already at v1.0.6. The CLI jumps directly from v1.0.5 → v1.0.7.
