@@ -149,6 +149,22 @@ flagify projects pick
 
 ---
 
+### `flagify projects delete`
+
+Delete a project along with all its environments, flags, segments, and API keys. Requires admin role. Asks for confirmation unless `--yes` is passed.
+
+```bash
+flagify projects delete proj_xxx
+```
+
+```bash
+flagify projects delete proj_xxx --yes
+```
+
+> This action is irreversible. If the deleted project was your saved default, the `project` and `projectId` config entries are cleared.
+
+---
+
 ### `flagify environments pick`
 
 Interactively select a default environment. Saved to `~/.flagify/config.json`.

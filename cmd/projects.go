@@ -88,6 +88,49 @@ var projectsGetCmd = &cobra.Command{
 	},
 }
 
+var projectsDeleteCmd = &cobra.Command{
+	Use:   "delete [id]",
+	Short: "Delete a project and all its environments, flags, and segments",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing project ID. Usage: flagify projects delete <id>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		projID := args[0]
+
+		yes, _ := cmd.Flags().GetBool("yes")
+		confirmed, err := ui.Confirm(fmt.Sprintf("Delete project %s? This will also delete all its environments, flags, segments, and API keys. This cannot be undone.", ui.Bold(projID)), yes)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Println(ui.Info("Cancelled."))
+			return nil
+		}
+
+		client, err := getClient()
+		if err != nil {
+			return err
+		}
+
+		if err := client.DeleteProject(projID); err != nil {
+			return handleAccessError(err)
+		}
+
+		cfg, err := config.Load()
+		if err == nil && cfg.ProjectID == projID {
+			cfg.Project = ""
+			cfg.ProjectID = ""
+			_ = config.Save(cfg)
+		}
+
+		fmt.Println(ui.Success("Deleted project " + projID))
+		return nil
+	},
+}
+
 var projectsPickCmd = &cobra.Command{
 	Use:   "pick",
 	Short: "Interactively select a default project",
@@ -132,6 +175,7 @@ var projectsPickCmd = &cobra.Command{
 func init() {
 	projectsCmd.AddCommand(projectsListCmd)
 	projectsCmd.AddCommand(projectsGetCmd)
+	projectsCmd.AddCommand(projectsDeleteCmd)
 	projectsCmd.AddCommand(projectsPickCmd)
 	rootCmd.AddCommand(projectsCmd)
 }

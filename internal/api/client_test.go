@@ -268,6 +268,22 @@ func TestClientGetProject(t *testing.T) {
 	assert.Equal(t, "development", project.Environments[0].Key)
 }
 
+func TestClientDeleteProject(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "DELETE", r.Method)
+		assert.Equal(t, "/v1/projects/p1", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	err := client.DeleteProject("p1")
+	require.NoError(t, err)
+}
+
 func TestClientGenerateKeys(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
