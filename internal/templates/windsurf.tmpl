@@ -12,7 +12,6 @@ await flagify.ready()
 flagify.isEnabled('flag-name')                    // boolean
 flagify.getValue('flag-name', fallback)           // typed value, fallback required
 flagify.getVariant('flag-name', 'control')        // A/B variant
-await flagify.evaluate('flag-name', { userId })   // server-side with user context
 flagify.destroy()                                 // clean up SSE
 ```
 
@@ -24,6 +23,34 @@ const value = useFlagValue<T>('flag-name', fallback) // fallback required
 const variant = useVariant('flag-name', 'control')
 const ready = useIsReady()
 ```
+
+## User context & targeting
+
+For flags that differ per user (admins, plans, beta cohorts, geos): pass the user ONCE when the client/Provider initializes. The SDK fetches values already evaluated for that user, and `useFlag()` / `isEnabled()` return them from cache.
+
+React — mount Provider below auth, with `key={user.id}` so the cache resyncs on login/logout:
+```tsx
+<FlagifyProvider
+  key={user?.id ?? 'anonymous'}
+  options={{"{{"}}
+    realtime: true,
+    user: user ? { id: user.id, role: user.role, email: user.email } : undefined,
+  {{"}}"}}
+>
+  <App />
+</FlagifyProvider>
+const canSeeAdmin = useFlag('admin-tools') // already targeted
+```
+
+DO NOT write a custom React hook that calls `client.evaluate(key, user)` per flag.
+
+Node per-request (Express/Fastify/Next):
+```typescript
+const result = await flagify.evaluate('admin-tools', { id: req.user.id, role: req.user.role })
+if (!result.value) return res.status(403).end()
+```
+
+User object shape: `{ id, role?, email?, group?, plan?, ...customAttributes }`. Field is `id`, not `userId`. Targeting rules are configured server-side (dashboard/API), not in code.
 
 ## CLI
 
@@ -43,6 +70,7 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 - Group related flags: checkout-*, onboarding-*
 - Always handle both flag states
 - Fallback values required for getValue() / useFlagValue()
+- For targeted flags: pass options.user to Provider/client ONCE — never call client.evaluate() from a React hook per flag
 
 To check current flags, run: flagify flags list
 {{- if .FlagsContext}}

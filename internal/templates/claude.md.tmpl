@@ -21,11 +21,10 @@ const flagify = new Flagify({
 })
 
 await flagify.ready()
-const isOn = flagify.isEnabled('flag-name')          // boolean flag
-const value = flagify.getValue('flag-name', 'fallback') // typed value, fallback required
+const isOn = flagify.isEnabled('flag-name')                // boolean flag
+const value = flagify.getValue('flag-name', 'fallback')    // typed value, fallback required
 const variant = flagify.getVariant('flag-name', 'control') // A/B variant by weight
-const result = await flagify.evaluate('flag-name', { userId: 'u_123' }) // server-side eval with user context
-flagify.destroy() // clean up SSE connection
+flagify.destroy()                                          // clean up SSE connection
 ```
 
 **React (client-side):**
@@ -43,6 +42,64 @@ const value = useFlagValue<string>('flag-name', 'default') // typed, fallback re
 const variant = useVariant('flag-name', 'control')         // A/B variant
 const ready = useIsReady()                                 // true once flags are loaded
 ```
+
+## User context & targeting (CRITICAL)
+
+Targeting rules let a flag return different values per user (by `role`, `plan`, `email`, `country`, custom attributes, etc.). The pattern is **the same in every SDK**: pass the user once when the client/Provider initializes, and the SDK fetches values **already evaluated for that user**. Hooks and `isEnabled()` then return those evaluated values from the local cache — there is **no second hook or per-flag API for "evaluate with user"**.
+
+**React: pass `options.user` once, hooks return targeted values**
+```tsx
+// Mount FlagifyProvider BELOW your auth provider, after the user is loaded.
+// Use key={user.id} so the cache resyncs on login/logout.
+<AuthProvider>
+  {(user) => (
+    <FlagifyProvider
+      key={user?.id ?? 'anonymous'}
+      projectKey="my-project"
+      publicKey="pk_dev_..."
+      options={{"{{"}}
+        realtime: true,
+        user: user ? { id: user.id, role: user.role, email: user.email } : undefined,
+      {{"}}"}}
+    >
+      <App />
+    </FlagifyProvider>
+  )}
+</AuthProvider>
+
+// Inside any component — no special hook, no async wrapper.
+// The value here is already evaluated against targeting rules for the current user.
+function AdminPanel() {
+  const canSeeAdmin = useFlag('admin-tools') // true only when user.role === 'admin' (per targeting rule)
+  if (!canSeeAdmin) return null
+  return <Admin />
+}
+```
+
+DO NOT write a custom hook that calls `client.evaluate(key, user)` per flag — that defeats the cache, is async, and is wrong. The Provider already did the per-user evaluation.
+
+**Node.js: two valid patterns**
+
+1. **Long-lived single-user client** (rare on servers): pass `options.user` to the constructor; same as React — `isEnabled()` returns evaluated values.
+
+2. **Per-request evaluation** (typical Express/Fastify/Next API routes): the client is created once at startup with no user; for each request, call `await flagify.evaluate(key, user)` with the request's user. `evaluate()` hits the API and applies targeting rules server-side.
+
+```typescript
+// Per-request pattern (Express)
+app.get('/admin', async (req, res) => {
+  const result = await flagify.evaluate('admin-tools', {
+    id: req.user.id,
+    role: req.user.role,
+    email: req.user.email,
+  })
+  if (!result.value) return res.status(403).end()
+  res.render('admin')
+})
+```
+
+The user object shape is `{ id: string, role?, email?, group?, plan?, ...customAttributes }`. The field is **`id`**, not `userId` (the SDK serializes it to `userId` on the wire automatically).
+
+Targeting rules themselves are configured server-side (dashboard, API, or future CLI commands), not in code. The SDK only sends the user attributes — the evaluation engine on the API decides which rule wins.
 
 ## CLI Reference
 
@@ -87,6 +144,7 @@ flagify workspaces list
 - Use `publicKey` in frontend, `secretKey` only on server
 - Group related flags with a prefix: `checkout-new-ui`, `checkout-express-flow`
 - Call `flagify.destroy()` to clean up the SSE connection when done
+- For targeted flags: pass `options.user` to the Provider/client ONCE — never call `client.evaluate()` from a React hook per flag
 
 To see current flags and their state, run:
 ```

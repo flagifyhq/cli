@@ -12,7 +12,6 @@ await flagify.ready()
 const isOn = flagify.isEnabled('flag-name')
 const value = flagify.getValue('flag-name', 'fallback') // fallback required
 const variant = flagify.getVariant('flag-name', 'control')
-const result = await flagify.evaluate('flag-name', { userId: 'u_123' })
 flagify.destroy()
 ```
 
@@ -25,6 +24,44 @@ const value = useFlagValue<string>('flag-name', 'default') // fallback required
 const variant = useVariant('flag-name', 'control')
 const ready = useIsReady()
 ```
+
+## User context & targeting
+
+For flags that should differ per user (admins, plans, beta cohorts, geos, etc.) the pattern is the same in every SDK: pass the user **once** when the client/Provider initializes; the SDK fetches values already evaluated for that user, and `useFlag()` / `isEnabled()` return them from the cache.
+
+**React** — mount `<FlagifyProvider>` BELOW your auth provider, after the user is loaded, and use `key={user.id}` so the cache resyncs on login/logout:
+```tsx
+<FlagifyProvider
+  key={user?.id ?? 'anonymous'}
+  projectKey="..."
+  publicKey="pk_dev_..."
+  options={{"{{"}}
+    realtime: true,
+    user: user ? { id: user.id, role: user.role, email: user.email } : undefined,
+  {{"}}"}}
+>
+  <App />
+</FlagifyProvider>
+
+// Then anywhere — already evaluated against targeting rules for the current user.
+const canSeeAdmin = useFlag('admin-tools')
+```
+
+DO NOT write a custom React hook that calls `client.evaluate(key, user)` per flag — it bypasses the cache, is async, and is wrong. The Provider already did the per-user evaluation.
+
+**Node.js per-request** (Express/Fastify/Next API routes) — call `evaluate()` with the request's user:
+```typescript
+const result = await flagify.evaluate('admin-tools', {
+  id: req.user.id,
+  role: req.user.role,
+  email: req.user.email,
+})
+if (!result.value) return res.status(403).end()
+```
+
+User object shape: `{ id: string, role?, email?, group?, plan?, ...customAttributes }`. The field is **`id`**, not `userId`.
+
+Targeting rules themselves are configured server-side (dashboard / API), not in code. The SDK only sends user attributes — the API decides which rule wins.
 
 ## CLI
 
@@ -46,6 +83,7 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 - Flag names: kebab-case only — `new-checkout-flow` (no camelCase, snake_case, spaces)
 - Group related flags with a prefix: `checkout-*`, `onboarding-*`
 - Call flagify.destroy() to clean up SSE connection
+- For targeted flags: pass `options.user` to the Provider/client ONCE — never call `client.evaluate()` from a React hook per flag
 
 To check current flags: `flagify flags list`
 {{- if .FlagsContext}}

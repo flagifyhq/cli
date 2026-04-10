@@ -11,3 +11,14 @@ flagify flags get $FLAG_NAME --format json
 ```
 
 Flag name rules: kebab-case only (e.g. `new-checkout-flow`). No camelCase, snake_case, or spaces — the CLI validates this and suggests corrections.
+
+## When the flag needs per-user targeting
+
+If "$FLAG_NAME" should behave differently for different users (admins, specific plans, beta testers, geographies, etc.), the **targeting rules are configured server-side** in the Flagify dashboard or via the API — not in the SDK. The SDK only forwards user attributes.
+
+Once rules are set, the SDK pattern is:
+
+- **React**: pass `options.user` ONCE to `<FlagifyProvider>` (mount it below your auth provider, with `key={user.id}`). Then `useFlag('$FLAG_NAME')` returns the value already evaluated for that user. Do NOT write a custom hook that calls `client.evaluate()` per flag.
+- **Node.js (per-request)**: at request time, call `await flagify.evaluate('$FLAG_NAME', { id, role, email, ...customAttrs })`. The user object uses `id` (not `userId`).
+
+See the "User context & targeting" section in this project's CLAUDE.md for full examples.

@@ -9,3 +9,5 @@ To get details for a specific flag:
 ```
 flagify flags get <key> --format json
 ```
+
+The output shows flag definitions and per-environment enabled state, but it does NOT show per-user evaluation results. To see what value a user would get, the application code must evaluate the flag through the SDK with that user's context. See "User context & targeting" in CLAUDE.md for the correct pattern (`options.user` in the React Provider, or `flagify.evaluate(key, user)` server-side).

@@ -6,3 +6,5 @@ flagify flags toggle $FLAG_NAME --environment $ENVIRONMENT
 ```
 
 Run `flagify flags get $FLAG_NAME --format json` first to see current state before toggling.
+
+Note: toggling controls whether the flag is **enabled** in that environment. When disabled, the flag returns its `offValue` regardless of any targeting rules. When enabled, targeting rules (if any) are evaluated against the user context passed by the SDK. See the "User context & targeting" section in CLAUDE.md.
