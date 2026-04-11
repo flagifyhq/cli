@@ -6,3 +6,7 @@ coverage.out
 .DS_Store
 npm/node_modules/
 npm/bin/
+
+# Local AI assistant state and instructions — not shipped in the public repo
+CLAUDE.md
+.claude/
