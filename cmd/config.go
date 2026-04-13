@@ -77,7 +77,7 @@ var configCmd = &cobra.Command{
 var configSetCmd = &cobra.Command{
 	Use:   "set [key] [value]",
 	Short: "Set a configuration value",
-	Long:  "Set a configuration value. Valid keys: api-url, workspace, project, environment",
+	Long:  "Set a configuration value. Valid keys: api-url, console-url, workspace, project, environment",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
@@ -93,6 +93,9 @@ var configSetCmd = &cobra.Command{
 		case "api-url":
 			oldValue = cfg.APIUrl
 			cfg.APIUrl = value
+		case "console-url":
+			oldValue = cfg.ConsoleUrl
+			cfg.ConsoleUrl = value
 		case "workspace":
 			oldValue = cfg.Workspace
 			cfg.Workspace = value
@@ -103,7 +106,7 @@ var configSetCmd = &cobra.Command{
 			oldValue = cfg.Environment
 			cfg.Environment = value
 		default:
-			return fmt.Errorf("unknown config key %q. Valid keys: api-url, workspace, project, environment", key)
+			return fmt.Errorf("unknown config key %q. Valid keys: api-url, console-url, workspace, project, environment", key)
 		}
 
 		if err := config.Save(cfg); err != nil {
@@ -122,7 +125,7 @@ var configSetCmd = &cobra.Command{
 var configGetCmd = &cobra.Command{
 	Use:   "get [key]",
 	Short: "Get a configuration value",
-	Long:  "Get a configuration value. Valid keys: api-url, workspace, project, environment",
+	Long:  "Get a configuration value. Valid keys: api-url, console-url, workspace, project, environment",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
@@ -136,6 +139,8 @@ var configGetCmd = &cobra.Command{
 		switch key {
 		case "api-url":
 			value = cfg.APIUrl
+		case "console-url":
+			value = cfg.ConsoleUrl
 		case "workspace":
 			value = cfg.Workspace
 		case "project":
@@ -143,7 +148,7 @@ var configGetCmd = &cobra.Command{
 		case "environment":
 			value = cfg.Environment
 		default:
-			return fmt.Errorf("unknown config key %q. Valid keys: api-url, workspace, project, environment", key)
+			return fmt.Errorf("unknown config key %q. Valid keys: api-url, console-url, workspace, project, environment", key)
 		}
 
 		if value == "" {
