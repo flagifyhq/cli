@@ -111,16 +111,15 @@ func loginBrowser(cfg *config.Config) error {
 		accessToken := r.URL.Query().Get("access_token")
 		refreshToken := r.URL.Query().Get("refresh_token")
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 		if accessToken == "" || refreshToken == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprint(w, callbackHTML("Authentication Failed", "Missing tokens. Please try again.", true))
+			redirectURL := fmt.Sprintf("%s/auth/cli-auth?status=error", consoleURL)
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 			resultCh <- callbackResult{err: fmt.Errorf("missing tokens in callback")}
 			return
 		}
 
-		fmt.Fprint(w, callbackHTML("Authentication Successful", "You can close this tab and return to your terminal.", false))
+		redirectURL := fmt.Sprintf("%s/auth/cli-auth?status=success", consoleURL)
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 		resultCh <- callbackResult{accessToken: accessToken, refreshToken: refreshToken}
 	})
 
@@ -223,26 +222,6 @@ func loginClassic(cfg *config.Config) error {
 	}
 	maybeAutoSelect(cfg)
 	return nil
-}
-
-func callbackHTML(title, message string, isError bool) string {
-	color := "#00CC88"
-	icon := "✓"
-	if isError {
-		color = "#FF6B6B"
-		icon = "✗"
-	}
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Flagify CLI</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#0A0E17;color:#F8FAFC;">
-  <div style="text-align:center;max-width:400px;padding:2rem;">
-    <div style="font-size:3rem;margin-bottom:1rem;color:%s;">%s</div>
-    <h1 style="font-size:1.25rem;margin-bottom:0.5rem;">%s</h1>
-    <p style="color:#94A3B8;font-size:0.9rem;">%s</p>
-  </div>
-</body>
-</html>`, color, icon, title, message)
 }
 
 var logoutCmd = &cobra.Command{
