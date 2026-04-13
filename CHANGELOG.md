@@ -2,6 +2,17 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.2.0](https://github.com/flagifyhq/cli/releases/tag/v1.2.0) — 2026-04-13
+
+### Features
+
+- `flagify login` now redirects the browser to the Flagify console success page after authorization, instead of showing an inline HTML page in localhost. The success and error states are rendered with animated icons on the console domain (#26)
+- `console-url` added as a valid key for `flagify config set` and `flagify config get`. Allows overriding the console URL for local development (#26)
+
+### Improvements
+
+- Removed dead `callbackHTML` function that served inline HTML in the browser callback (#26)
+
 ## [v1.1.0](https://github.com/flagifyhq/cli/releases/tag/v1.1.0) — 2026-04-10
 
 ### Features

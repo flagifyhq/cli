@@ -401,7 +401,7 @@ Get a single value (useful for scripts):
 flagify config get project
 ```
 
-Valid keys: `api-url`, `workspace`, `project`, `environment`
+Valid keys: `api-url`, `console-url`, `workspace`, `project`, `environment`
 
 ## Shell completions
 
