@@ -93,6 +93,15 @@ flagify login
 
 Prompts for email and password. Credentials are stored in `~/.flagify/config.json`.
 
+### `flagify whoami`
+
+Show the currently authenticated user. Exits with an error if no session is stored.
+
+```bash
+flagify whoami
+# ✓ Jane Doe (jane@company.com)
+```
+
 ## Commands
 
 ### `flagify workspaces list`
@@ -303,6 +312,86 @@ flagify keys revoke -p proj_xxx -e development
 |------|-------|-------------|
 | `--project` | `-p` | Project key (required) |
 | `--environment` | `-e` | Environment key (required) |
+
+---
+
+### `flagify segments list`
+
+List all user segments defined in a project. Segments are reusable groups of users that targeting rules can reference.
+
+```bash
+flagify segments list -p proj_xxx
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project ID (falls back to config default) |
+
+---
+
+### `flagify segments create`
+
+Create a new segment with optional JSON rules.
+
+```bash
+flagify segments create "Pro users" \
+  -p proj_xxx \
+  --match ALL \
+  --rules '[{"attribute":"plan","operator":"equals","value":"pro"}]'
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--project` / `-p` | config default | Project ID |
+| `--match` | `ALL` | Match mode: `ALL` or `ANY` |
+| `--rules` | — | Rules as a JSON array of `{attribute, operator, value}` |
+| `--yes` / `-y` | `false` | Skip the confirmation prompt |
+
+---
+
+### `flagify segments delete`
+
+Delete a segment by ID. Asks for confirmation unless `--yes` is passed.
+
+```bash
+flagify segments delete seg_xxx
+```
+
+---
+
+### `flagify targeting list`
+
+Show the targeting rules for a flag in an environment, in priority order.
+
+```bash
+flagify targeting list checkout-redesign -p proj_xxx -e production
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project ID (falls back to config default) |
+| `--environment` | `-e` | Environment key (defaults to `development`) |
+
+---
+
+### `flagify targeting set`
+
+Replace **all** targeting rules for a flag in an environment. Pass the full desired rule set as a JSON array.
+
+```bash
+flagify targeting set checkout-redesign \
+  -p proj_xxx -e production \
+  --rules '[{"priority":1,"enabled":true,"segmentId":"seg_xxx","valueOverride":true,"rolloutPercentage":100}]'
+```
+
+Rule object fields: `priority` (number), `enabled` (boolean), `segmentId` (optional string), `conditions` (optional array of `{attribute, operator, value}`), `valueOverride` (any), `rolloutPercentage` (optional number 0–100).
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project ID (falls back to config default) |
+| `--environment` | `-e` | Environment key (defaults to `development`) |
+| `--rules` | | Rules as a JSON array (required) |
+| `--yes` | `-y` | Skip the confirmation prompt |
 
 ---
 

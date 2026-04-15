@@ -46,6 +46,7 @@ flagify flags toggle my-flag -p <project-id>
 |---------|-------------|
 | `flagify login` | Authenticate with email and password |
 | `flagify logout` | Clear stored credentials |
+| `flagify whoami` | Show the currently authenticated user |
 | `flagify workspaces list` | List your workspaces |
 | `flagify workspaces pick` | Interactively select a default workspace |
 | `flagify projects list` | List projects in a workspace |
@@ -60,6 +61,11 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify keys generate` | Generate API key pair for environment |
 | `flagify keys list` | List API keys for environment |
 | `flagify keys revoke` | Revoke all API keys for environment |
+| `flagify segments list` | List user segments in a project |
+| `flagify segments create <name>` | Create a segment with optional JSON rules (`--match`, `--rules`) |
+| `flagify segments delete <id>` | Delete a segment by ID |
+| `flagify targeting list <flag-key>` | Show targeting rules for a flag in an environment |
+| `flagify targeting set <flag-key>` | Replace all targeting rules for a flag (`--rules '<json>'`) |
 | `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Use `--include-flags` for a snapshot |
 | `flagify config` | Show current configuration |
 | `flagify config set <key> <value>` | Set a config value (api-url, console-url, workspace, project, environment) |
