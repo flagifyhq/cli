@@ -147,7 +147,7 @@ Flagify ships integrations with the tools teams already use. Browse the full cat
 ```yaml
 - uses: flagifyhq/flagify-action@v1
   with:
-    api-key: ${{ secrets.FLAGIFY_API_KEY }}
+    api-key: ${{"{{"}} secrets.FLAGIFY_API_KEY {{"}}"}}
     flag: production-deploys-enabled
     on-disabled: fail
 
