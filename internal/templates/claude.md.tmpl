@@ -138,6 +138,24 @@ flagify projects list
 flagify workspaces list
 ```
 
+## Integrations
+
+Flagify ships integrations with the tools teams already use. Browse the full catalogue at [flagify.dev/integrations](https://flagify.dev/integrations). Highlights:
+
+- **GitHub Actions** — [`flagifyhq/flagify-action`](https://github.com/marketplace/actions/flagify-feature-flags) evaluates a flag inside a workflow and exposes `value`, `enabled`, `reason` as step outputs. Use `on-disabled: fail` for kill-switch patterns (deploy gates), `on-disabled: skip` for conditional steps, `continue` (default) for plain outputs with `if:` guards on later steps.
+
+```yaml
+- uses: flagifyhq/flagify-action@v1
+  with:
+    api-key: ${{"{{"}} secrets.FLAGIFY_API_KEY {{"}}"}}
+    flag: production-deploys-enabled
+    on-disabled: fail
+
+- run: ./deploy.sh
+```
+
+More integrations land every month — propose one on [flagify.dev/partners](https://flagify.dev/partners).
+
 ## Rules
 - Never hardcode flag values — always evaluate at runtime
 - Handle both enabled and disabled states explicitly
