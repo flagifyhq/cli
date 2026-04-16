@@ -409,7 +409,7 @@ Generate for a specific tool:
 flagify ai-setup --tool cursor
 ```
 
-By default, generated configs tell the AI tool to run `flagify flags list` for live data. Use `--include-flags` to also embed a snapshot of your current flags:
+By default, generated configs tell the AI tool to run `flagify flags list` for live data and include a reference to the Flagify integrations catalogue (GitHub Actions and more) so the AI knows which first-party tools are available. Use `--include-flags` to also embed a snapshot of your current flags:
 
 ```bash
 flagify ai-setup --include-flags

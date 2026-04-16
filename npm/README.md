@@ -66,7 +66,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify segments delete <id>` | Delete a segment by ID |
 | `flagify targeting list <flag-key>` | Show targeting rules for a flag in an environment |
 | `flagify targeting set <flag-key>` | Replace all targeting rules for a flag (`--rules '<json>'`) |
-| `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Use `--include-flags` for a snapshot |
+| `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
 | `flagify config` | Show current configuration |
 | `flagify config set <key> <value>` | Set a config value (api-url, console-url, workspace, project, environment) |
 | `flagify config get <key>` | Get a single config value |
