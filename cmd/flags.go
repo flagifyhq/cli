@@ -302,7 +302,7 @@ var flagsToggleCmd = &cobra.Command{
 			}
 
 			for _, fe := range targetFlag.Environments {
-				if err := client.ToggleFlag(fe.ID, newState); err != nil {
+				if err := client.ToggleFlagByKey(project, key, fe.EnvironmentKey, newState); err != nil {
 					return handleAccessError(err)
 				}
 				state := ui.Red("OFF")
@@ -341,7 +341,7 @@ var flagsToggleCmd = &cobra.Command{
 			return nil
 		}
 
-		if err := client.ToggleFlag(targetFE.ID, newState); err != nil {
+		if err := client.ToggleFlagByKey(project, key, env, newState); err != nil {
 			return handleAccessError(err)
 		}
 
