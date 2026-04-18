@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/flagifyhq/cli/internal/api"
@@ -10,13 +11,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	ErrFlagNotFound = errors.New("flag not found")
+	ErrEnvNotFound  = errors.New("environment not found for flag")
+)
+
 var targetingCmd = &cobra.Command{
 	Use:   "targeting",
 	Short: "Manage targeting rules for feature flags",
 }
 
 var targetingListCmd = &cobra.Command{
-	Use:   "list [flag-key]",
+	Use:   "list <flag-key>",
 	Short: "List targeting rules for a flag",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
@@ -30,7 +36,7 @@ var targetingListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
@@ -46,7 +52,7 @@ var targetingListCmd = &cobra.Command{
 
 		feID, err := findFlagEnvID(client, project, flagKey, env)
 		if err != nil {
-			return err
+			return decorateLookupError(err, flagKey, env)
 		}
 
 		rules, err := client.GetTargetingRules(feID)
@@ -54,8 +60,17 @@ var targetingListCmd = &cobra.Command{
 			return fmt.Errorf("failed to get targeting rules: %w", err)
 		}
 
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(map[string]any{
+				"flag":        flagKey,
+				"environment": env,
+				"rules":       rules,
+			})
+		}
+
 		if len(rules) == 0 {
-			fmt.Println(ui.Info("No targeting rules."))
+			fmt.Println(ui.Info(fmt.Sprintf("No targeting rules for %s in %s.",
+				ui.Bold(flagKey), ui.Cyan(env))))
 			return nil
 		}
 
@@ -66,10 +81,6 @@ var targetingListCmd = &cobra.Command{
 				target = "segment:" + *r.SegmentID
 			}
 			if len(r.Conditions) > 0 {
-				conds := make([]string, len(r.Conditions))
-				for j, c := range r.Conditions {
-					conds[j] = fmt.Sprintf("%s %s %v", c.Attribute, c.Operator, c.Value)
-				}
 				if target != "" {
 					target += " + "
 				}
@@ -102,7 +113,7 @@ var targetingListCmd = &cobra.Command{
 }
 
 var targetingSetCmd = &cobra.Command{
-	Use:   "set [flag-key]",
+	Use:   "set <flag-key>",
 	Short: "Set targeting rules for a flag (replaces all existing rules)",
 	Long:  "Set targeting rules from a JSON string. Replaces all existing rules for the flag in the specified environment.",
 	Args: func(cmd *cobra.Command, args []string) error {
@@ -117,7 +128,7 @@ var targetingSetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		env := resolveFlag(cmd, "environment", cfg.Environment)
 		rulesRaw, _ := cmd.Flags().GetString("rules")
 		if project == "" {
@@ -156,12 +167,20 @@ var targetingSetCmd = &cobra.Command{
 
 		feID, err := findFlagEnvID(client, project, flagKey, env)
 		if err != nil {
-			return err
+			return decorateLookupError(err, flagKey, env)
 		}
 
 		result, err := client.SetTargetingRules(feID, map[string]any{"rules": rules})
 		if err != nil {
 			return fmt.Errorf("failed to set targeting rules: %w", err)
+		}
+
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(map[string]any{
+				"flag":        flagKey,
+				"environment": env,
+				"rules":       result,
+			})
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Set %d targeting rules for %s in %s",
@@ -170,10 +189,25 @@ var targetingSetCmd = &cobra.Command{
 	},
 }
 
+// decorateLookupError appends a "what to run next" hint when the lookup
+// failed for a known reason. The original error is still wrapped so
+// `errors.Is(err, ErrFlagNotFound)` keeps working in scripts that branch
+// on the failure mode.
+func decorateLookupError(err error, flagKey, envKey string) error {
+	switch {
+	case errors.Is(err, ErrFlagNotFound):
+		return fmt.Errorf("%w. Run `flagify flags list` to see available flag keys", err)
+	case errors.Is(err, ErrEnvNotFound):
+		return fmt.Errorf("%w. Run `flagify projects get` to see environments configured for this project", err)
+	default:
+		return err
+	}
+}
+
 func findFlagEnvID(client *api.Client, projectID, flagKey, envKey string) (string, error) {
 	flags, err := client.ListFlags(projectID)
 	if err != nil {
-		return "", fmt.Errorf("failed to list flags: %w", err)
+		return "", fmt.Errorf("failed to load flags: %w", err)
 	}
 
 	for _, f := range flags {
@@ -183,14 +217,16 @@ func findFlagEnvID(client *api.Client, projectID, flagKey, envKey string) (strin
 					return fe.ID, nil
 				}
 			}
-			return "", fmt.Errorf("environment %q not found for flag %q", envKey, flagKey)
+			return "", fmt.Errorf("environment %q not configured for flag %q: %w", envKey, flagKey, ErrEnvNotFound)
 		}
 	}
-	return "", fmt.Errorf("flag %q not found in project", flagKey)
+	return "", fmt.Errorf("flag %q not found in project: %w", flagKey, ErrFlagNotFound)
 }
 
 func init() {
 	targetingSetCmd.Flags().String("rules", "", `Rules as JSON array (required)`)
+	ui.AddFormatFlag(targetingListCmd)
+	ui.AddFormatFlag(targetingSetCmd)
 
 	targetingCmd.AddCommand(targetingListCmd)
 	targetingCmd.AddCommand(targetingSetCmd)

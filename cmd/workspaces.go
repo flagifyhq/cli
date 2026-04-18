@@ -28,6 +28,10 @@ var workspacesListCmd = &cobra.Command{
 			return fmt.Errorf("failed to list workspaces: %w", err)
 		}
 
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(workspaces)
+		}
+
 		if len(workspaces) == 0 {
 			fmt.Println(ui.Info("No workspaces found."))
 			return nil
@@ -73,6 +77,8 @@ var workspacesPickCmd = &cobra.Command{
 }
 
 func init() {
+	ui.AddFormatFlag(workspacesListCmd)
+
 	workspacesCmd.AddCommand(workspacesListCmd)
 	workspacesCmd.AddCommand(workspacesPickCmd)
 	rootCmd.AddCommand(workspacesCmd)

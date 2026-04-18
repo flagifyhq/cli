@@ -21,6 +21,10 @@ var whoamiCmd = &cobra.Command{
 			return fmt.Errorf("failed to get user info: %w", err)
 		}
 
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(user)
+		}
+
 		name := ""
 		if user.Name != nil {
 			name = *user.Name
@@ -37,5 +41,6 @@ var whoamiCmd = &cobra.Command{
 }
 
 func init() {
+	ui.AddFormatFlag(whoamiCmd)
 	rootCmd.AddCommand(whoamiCmd)
 }

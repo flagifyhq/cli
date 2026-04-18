@@ -100,9 +100,18 @@ Show the currently authenticated user. Exits with an error if no session is stor
 ```bash
 flagify whoami
 # ✓ Jane Doe (jane@company.com)
+flagify whoami --format json
 ```
 
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--format` | | Output format (`table`, `json`) |
+
 ## Commands
+
+> **Machine-readable output**: every read-only command (`*list`, `*get`, `whoami`, `config`, `keys generate`, `targeting list/set`) accepts `--format json` for clean, pipe-friendly output. Example: `flagify projects list --format json | jq '.[0].id'`.
+>
+> **Environment aliases**: `--environment` accepts the canonical `development|staging|production` **and** the short aliases `dev|stg|prod`.
 
 ### `flagify workspaces list`
 
@@ -110,7 +119,12 @@ List your workspaces.
 
 ```bash
 flagify workspaces list
+flagify workspaces list --format json
 ```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
@@ -130,11 +144,13 @@ List projects in a workspace. Falls back to saved workspace if `--workspace` is 
 
 ```bash
 flagify projects list -w ws_xxx
+flagify projects list --format json
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--workspace` | `-w` | Workspace ID (falls back to config default) |
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
@@ -144,7 +160,12 @@ Show project details with environments.
 
 ```bash
 flagify projects get proj_xxx
+flagify projects get proj_xxx --format json
 ```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
@@ -263,7 +284,7 @@ flagify flags toggle -p proj_xxx
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project key (required) |
-| `--environment` | `-e` | Environment (dev, staging, prod) |
+| `--environment` | `-e` | Environment key (must match the environment slug configured in the API for this project) |
 | `--all` | `-a` | Toggle in all environments at once |
 
 ---
@@ -274,12 +295,14 @@ Generate an API key pair (publishable + secret) for an environment. Keys are req
 
 ```bash
 flagify keys generate -p proj_xxx -e development
+flagify keys generate -p proj_xxx -e development --format json
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project key (required) |
 | `--environment` | `-e` | Environment key (required) |
+| `--format` | | Output format (`table`, `json`) — JSON returns `{environment, publishableKey, secretKey}` |
 
 > **Important:** The secret key is only shown once. Save it immediately.
 
@@ -291,12 +314,14 @@ List all API keys for an environment.
 
 ```bash
 flagify keys list -p proj_xxx -e development
+flagify keys list -p proj_xxx -e development --format json
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project key (required) |
 | `--environment` | `-e` | Environment key (required) |
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
@@ -321,11 +346,13 @@ List all user segments defined in a project. Segments are reusable groups of use
 
 ```bash
 flagify segments list -p proj_xxx
+flagify segments list -p proj_xxx --format json
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project ID (falls back to config default) |
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
@@ -359,22 +386,31 @@ flagify segments delete seg_xxx
 
 ---
 
-### `flagify targeting list`
+### `flagify targeting list <flag-key>`
 
 Show the targeting rules for a flag in an environment, in priority order.
 
 ```bash
 flagify targeting list checkout-redesign -p proj_xxx -e production
+flagify targeting list checkout-redesign -e production --format json
 ```
+
+With `--format json`, the output is `{ "flag", "environment", "rules": [...] }` even when there are no rules (empty `rules` array) — safe for scripts.
+
+Exit codes:
+- `0`: rules fetched (may be empty).
+- `1` + `flag "<key>" not found in project`: the flag does not exist.
+- `1` + `environment "<env>" not configured for flag "<key>"`: the flag exists but the environment has no flag config.
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project ID (falls back to config default) |
-| `--environment` | `-e` | Environment key (defaults to `development`) |
+| `--environment` | `-e` | Environment key (defaults to `development`; accepts aliases `dev`, `stg`, `prod`) |
+| `--format` | | Output format (`table`, `json`) |
 
 ---
 
-### `flagify targeting set`
+### `flagify targeting set <flag-key>`
 
 Replace **all** targeting rules for a flag in an environment. Pass the full desired rule set as a JSON array.
 
@@ -389,8 +425,9 @@ Rule object fields: `priority` (number), `enabled` (boolean), `segmentId` (optio
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project ID (falls back to config default) |
-| `--environment` | `-e` | Environment key (defaults to `development`) |
+| `--environment` | `-e` | Environment key (defaults to `development`; accepts aliases `dev`, `stg`, `prod`) |
 | `--rules` | | Rules as a JSON array (required) |
+| `--format` | | Output format (`table`, `json`) — JSON returns the saved rules as `{flag, environment, rules}` |
 | `--yes` | `-y` | Skip the confirmation prompt |
 
 ---
@@ -476,6 +513,7 @@ View current config:
 
 ```bash
 flagify config
+flagify config --format json
 ```
 
 Set a value:
@@ -517,7 +555,7 @@ These flags are available on all commands:
 |------|-------|-------------|
 | `--workspace` | `-w` | Workspace ID |
 | `--project` | `-p` | Project key |
-| `--environment` | `-e` | Environment (dev, staging, prod) |
+| `--environment` | `-e` | Environment key (matches the environment slug in the API; e.g. `development`, `staging`, `production`, or any custom slug) |
 | `--yes` | `-y` | Skip confirmation prompts |
 | `--help` | `-h` | Help for any command |
 

@@ -42,32 +42,35 @@ flagify flags toggle my-flag -p <project-id>
 
 ## Commands
 
+> **Machine-readable output**: every read-only command below supports `--format json` for clean, pipe-friendly output. Combine with `jq` in scripts and CI. `--environment` accepts the canonical `development|staging|production` **and** the short aliases `dev|stg|prod`.
+
 | Command | Description |
 |---------|-------------|
 | `flagify login` | Authenticate with email and password |
 | `flagify logout` | Clear stored credentials |
 | `flagify whoami` | Show the currently authenticated user |
-| `flagify workspaces list` | List your workspaces |
+| `flagify workspaces list` | List your workspaces (`--format json`) |
 | `flagify workspaces pick` | Interactively select a default workspace |
-| `flagify projects list` | List projects in a workspace |
-| `flagify projects get` | Show project details with environments |
+| `flagify projects list` | List projects in a workspace (`--format json`) |
+| `flagify projects get` | Show project details with environments (`--format json`) |
 | `flagify projects pick` | Interactively select a default project |
 | `flagify projects delete <id>` | Delete a project and all its environments, flags, and segments (admin only) |
 | `flagify environments pick` | Interactively select a default environment |
-| `flagify flags list` | List all flags in a project (`--format json` for machine-readable output) |
-| `flagify flags get` | Get details for a specific flag with per-environment status |
+| `flagify flags list` | List all flags in a project (`--format json`) |
+| `flagify flags get` | Get details for a specific flag with per-environment status (`--format json`) |
 | `flagify flags create` | Create a new feature flag (kebab-case keys enforced) |
 | `flagify flags toggle` | Enable or disable a flag (interactive picker if no key given, supports `--all`) |
-| `flagify keys generate` | Generate API key pair for environment |
-| `flagify keys list` | List API keys for environment |
+| `flagify keys generate` | Generate API key pair for environment (`--format json`) |
+| `flagify keys list` | List API keys for environment (`--format json`) |
 | `flagify keys revoke` | Revoke all API keys for environment |
-| `flagify segments list` | List user segments in a project |
+| `flagify segments list` | List user segments in a project (`--format json`) |
 | `flagify segments create <name>` | Create a segment with optional JSON rules (`--match`, `--rules`) |
 | `flagify segments delete <id>` | Delete a segment by ID |
-| `flagify targeting list <flag-key>` | Show targeting rules for a flag in an environment |
-| `flagify targeting set <flag-key>` | Replace all targeting rules for a flag (`--rules '<json>'`) |
+| `flagify targeting list <flag-key>` | Show targeting rules for a flag in an environment (`--format json`; returns `{flag, environment, rules}`) |
+| `flagify targeting set <flag-key>` | Replace all targeting rules for a flag (`--rules '<json>'`, `--format json`) |
+| `flagify whoami` | Show current authenticated user (`--format json`) |
 | `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
-| `flagify config` | Show current configuration |
+| `flagify config` | Show current configuration (`--format json`) |
 | `flagify config set <key> <value>` | Set a config value (api-url, console-url, workspace, project, environment) |
 | `flagify config get <key>` | Get a single config value |
 | `flagify completion` | Generate shell completion scripts |

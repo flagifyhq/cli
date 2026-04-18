@@ -17,6 +17,25 @@ var configCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		if ui.IsJSON(cmd) {
+			path, _ := config.Path()
+			apiURL := cfg.APIUrl
+			if apiURL == "" {
+				apiURL = "https://api.flagify.dev"
+			}
+			return ui.PrintJSON(map[string]any{
+				"loggedIn":    cfg.IsLoggedIn(),
+				"apiUrl":      apiURL,
+				"consoleUrl":  cfg.ConsoleUrl,
+				"workspace":   cfg.Workspace,
+				"workspaceId": cfg.WorkspaceID,
+				"project":     cfg.Project,
+				"projectId":   cfg.ProjectID,
+				"environment": cfg.Environment,
+				"configFile":  path,
+			})
+		}
+
 		fmt.Println()
 		fmt.Println(ui.Bold("  Configuration"))
 		fmt.Println()
@@ -161,6 +180,7 @@ var configGetCmd = &cobra.Command{
 }
 
 func init() {
+	ui.AddFormatFlag(configCmd)
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configGetCmd)
