@@ -52,7 +52,7 @@ var targetingListCmd = &cobra.Command{
 
 		feID, err := findFlagEnvID(client, project, flagKey, env)
 		if err != nil {
-			return err
+			return decorateLookupError(err, flagKey, env)
 		}
 
 		rules, err := client.GetTargetingRules(feID)
@@ -167,7 +167,7 @@ var targetingSetCmd = &cobra.Command{
 
 		feID, err := findFlagEnvID(client, project, flagKey, env)
 		if err != nil {
-			return err
+			return decorateLookupError(err, flagKey, env)
 		}
 
 		result, err := client.SetTargetingRules(feID, map[string]any{"rules": rules})
@@ -187,6 +187,21 @@ var targetingSetCmd = &cobra.Command{
 			len(result), ui.Bold(flagKey), ui.Cyan(env))))
 		return nil
 	},
+}
+
+// decorateLookupError appends a "what to run next" hint when the lookup
+// failed for a known reason. The original error is still wrapped so
+// `errors.Is(err, ErrFlagNotFound)` keeps working in scripts that branch
+// on the failure mode.
+func decorateLookupError(err error, flagKey, envKey string) error {
+	switch {
+	case errors.Is(err, ErrFlagNotFound):
+		return fmt.Errorf("%w. Run `flagify flags list` to see available flag keys", err)
+	case errors.Is(err, ErrEnvNotFound):
+		return fmt.Errorf("%w. Run `flagify projects get` to see environments configured for this project", err)
+	default:
+		return err
+	}
 }
 
 func findFlagEnvID(client *api.Client, projectID, flagKey, envKey string) (string, error) {
