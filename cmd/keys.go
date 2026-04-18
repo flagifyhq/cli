@@ -3,24 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
-
-func resolveEnvironmentID(client *api.Client, projectID, envKey string) (string, error) {
-	project, err := client.GetProject(projectID)
-	if err != nil {
-		return "", handleAccessError(err)
-	}
-	for _, e := range project.Environments {
-		if e.Key == envKey {
-			return e.ID, nil
-		}
-	}
-	return "", fmt.Errorf("environment %q not found in project", envKey)
-}
 
 var keysCmd = &cobra.Command{
 	Use:   "keys",
@@ -59,12 +45,7 @@ var keysGenerateCmd = &cobra.Command{
 			return err
 		}
 
-		envID, err := resolveEnvironmentID(client, project, env)
-		if err != nil {
-			return err
-		}
-
-		keys, err := client.GenerateKeys(envID)
+		keys, err := client.GenerateKeysByEnv(project, env)
 		if err != nil {
 			return handleAccessError(err)
 		}
@@ -109,12 +90,7 @@ var keysListCmd = &cobra.Command{
 			return err
 		}
 
-		envID, err := resolveEnvironmentID(client, project, env)
-		if err != nil {
-			return err
-		}
-
-		keys, err := client.ListKeys(envID)
+		keys, err := client.ListKeysByEnv(project, env)
 		if err != nil {
 			return handleAccessError(err)
 		}
@@ -174,12 +150,7 @@ var keysRevokeCmd = &cobra.Command{
 			return err
 		}
 
-		envID, err := resolveEnvironmentID(client, project, env)
-		if err != nil {
-			return err
-		}
-
-		if err := client.RevokeKeys(envID); err != nil {
+		if err := client.RevokeKeysByEnv(project, env); err != nil {
 			return handleAccessError(err)
 		}
 

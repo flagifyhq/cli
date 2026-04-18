@@ -2,18 +2,11 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
-	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
-)
-
-var (
-	ErrFlagNotFound = errors.New("flag not found")
-	ErrEnvNotFound  = errors.New("environment not found for flag")
 )
 
 var targetingCmd = &cobra.Command{
@@ -50,14 +43,9 @@ var targetingListCmd = &cobra.Command{
 			return err
 		}
 
-		feID, err := findFlagEnvID(client, project, flagKey, env)
+		rules, err := client.GetTargetingRulesByKey(project, flagKey, env)
 		if err != nil {
-			return decorateLookupError(err, flagKey, env)
-		}
-
-		rules, err := client.GetTargetingRules(feID)
-		if err != nil {
-			return fmt.Errorf("failed to get targeting rules: %w", err)
+			return handleAccessError(err)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -165,14 +153,9 @@ var targetingSetCmd = &cobra.Command{
 			return err
 		}
 
-		feID, err := findFlagEnvID(client, project, flagKey, env)
+		result, err := client.SetTargetingRulesByKey(project, flagKey, env, map[string]any{"rules": rules})
 		if err != nil {
-			return decorateLookupError(err, flagKey, env)
-		}
-
-		result, err := client.SetTargetingRules(feID, map[string]any{"rules": rules})
-		if err != nil {
-			return fmt.Errorf("failed to set targeting rules: %w", err)
+			return handleAccessError(err)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -187,40 +170,6 @@ var targetingSetCmd = &cobra.Command{
 			len(result), ui.Bold(flagKey), ui.Cyan(env))))
 		return nil
 	},
-}
-
-// decorateLookupError appends a "what to run next" hint when the lookup
-// failed for a known reason. The original error is still wrapped so
-// `errors.Is(err, ErrFlagNotFound)` keeps working in scripts that branch
-// on the failure mode.
-func decorateLookupError(err error, flagKey, envKey string) error {
-	switch {
-	case errors.Is(err, ErrFlagNotFound):
-		return fmt.Errorf("%w. Run `flagify flags list` to see available flag keys", err)
-	case errors.Is(err, ErrEnvNotFound):
-		return fmt.Errorf("%w. Run `flagify projects get` to see environments configured for this project", err)
-	default:
-		return err
-	}
-}
-
-func findFlagEnvID(client *api.Client, projectID, flagKey, envKey string) (string, error) {
-	flags, err := client.ListFlags(projectID)
-	if err != nil {
-		return "", fmt.Errorf("failed to load flags: %w", err)
-	}
-
-	for _, f := range flags {
-		if f.Key == flagKey {
-			for _, fe := range f.Environments {
-				if fe.EnvironmentKey == envKey {
-					return fe.ID, nil
-				}
-			}
-			return "", fmt.Errorf("environment %q not configured for flag %q: %w", envKey, flagKey, ErrEnvNotFound)
-		}
-	}
-	return "", fmt.Errorf("flag %q not found in project: %w", flagKey, ErrFlagNotFound)
 }
 
 func init() {

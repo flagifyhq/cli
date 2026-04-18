@@ -295,6 +295,15 @@ func (c *Client) ToggleFlag(flagEnvID string, enabled bool) error {
 	}, nil)
 }
 
+// ToggleFlagByKey hits the project-scoped route that accepts the flag key and
+// environment slug directly, so the caller does not need to look up the
+// flag_environments ULID first.
+func (c *Client) ToggleFlagByKey(projectID, flagKey, envKey string, enabled bool) error {
+	return c.Put("/v1/projects/"+projectID+"/flags/"+flagKey+"/environments/"+envKey, map[string]any{
+		"enabled": enabled,
+	}, nil)
+}
+
 
 // Segments
 
@@ -358,6 +367,20 @@ func (c *Client) SetTargetingRules(flagEnvID string, body map[string]any) ([]Tar
 	return result, err
 }
 
+// GetTargetingRulesByKey is the slug-friendly variant of GetTargetingRules.
+func (c *Client) GetTargetingRulesByKey(projectID, flagKey, envKey string) ([]TargetingRule, error) {
+	var result []TargetingRule
+	err := c.Get("/v1/projects/"+projectID+"/flags/"+flagKey+"/environments/"+envKey+"/targeting-rules", &result)
+	return result, err
+}
+
+// SetTargetingRulesByKey is the slug-friendly variant of SetTargetingRules.
+func (c *Client) SetTargetingRulesByKey(projectID, flagKey, envKey string, body map[string]any) ([]TargetingRule, error) {
+	var result []TargetingRule
+	err := c.Put("/v1/projects/"+projectID+"/flags/"+flagKey+"/environments/"+envKey+"/targeting-rules", body, &result)
+	return result, err
+}
+
 // API Keys
 
 type APIKey struct {
@@ -392,4 +415,24 @@ func (c *Client) ListKeys(environmentID string) ([]APIKey, error) {
 
 func (c *Client) RevokeKeys(environmentID string) error {
 	return c.Post("/v1/environments/"+environmentID+"/keys/revoke", nil, nil)
+}
+
+// GenerateKeysByEnv hits the project-scoped route that accepts the environment
+// slug directly, so the caller does not need to resolve it to a ULID first.
+func (c *Client) GenerateKeysByEnv(projectID, envKey string) (*KeyPairResponse, error) {
+	var result KeyPairResponse
+	err := c.Post("/v1/projects/"+projectID+"/environments/"+envKey+"/keys", nil, &result)
+	return &result, err
+}
+
+// ListKeysByEnv is the slug-friendly variant of ListKeys.
+func (c *Client) ListKeysByEnv(projectID, envKey string) ([]APIKey, error) {
+	var result []APIKey
+	err := c.Get("/v1/projects/"+projectID+"/environments/"+envKey+"/keys", &result)
+	return result, err
+}
+
+// RevokeKeysByEnv is the slug-friendly variant of RevokeKeys.
+func (c *Client) RevokeKeysByEnv(projectID, envKey string) error {
+	return c.Post("/v1/projects/"+projectID+"/environments/"+envKey+"/keys/revoke", nil, nil)
 }
