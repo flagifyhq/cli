@@ -2,6 +2,30 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.4.0](https://github.com/flagifyhq/cli/releases/tag/v1.4.0) — 2026-04-18
+
+### Bug fixes
+
+- `flagify targeting list` and `flagify segments list` now send the project ULID to the API instead of the project slug, fixing the long-standing `not_found: resource not found` error that masked every targeting query (#35).
+
+### Features
+
+- **Uniform `--format json`** across every read-only command: `flags list`, `flags get`, `keys list`, `keys generate`, `projects list`, `projects get`, `workspaces list`, `segments list`, `targeting list`, `targeting set`, `whoami`, `config`. Pipe-friendly output for scripts, CI, and AI tooling. `keys generate --format json` returns `{environment, publishableKey, secretKey}` for one-shot scripting; `config --format json` deliberately omits tokens and secrets so the output is safe to log (#35).
+- **Slug-friendly `--environment`**: the CLI now sends the environment slug directly to the new project-scoped API routes (`/v1/projects/{pid}/...`). Custom environment slugs (`prod-eu`, `qa-2`, etc.) work without configuration. The `findFlagEnvID` / `resolveEnvironmentID` round-trips that the CLI used to perform locally have been removed (#36).
+- `targeting list` and `targeting set` use POSIX-style `<flag-key>` argument syntax and emit distinct, scriptable error messages for each failure mode (missing key, flag not found, environment not configured for flag) with actionable next-step hints (#35).
+
+### Improvements
+
+- `flagify` root command sets `SilenceUsage: true` so failures keep `stderr` clean for `jq` and shell scripts (no full `--help` dump after every API error) (#35).
+- Sentinel errors `ErrFlagNotFound` and `ErrEnvNotFound` exposed for callers that import the CLI as a library and want to branch on the failure mode via `errors.Is` (#35).
+
+## [v1.3.0](https://github.com/flagifyhq/cli/releases/tag/v1.3.0) — 2026-04-13
+
+### Documentation
+
+- Documented `segments`, `targeting`, and `whoami` commands in the CLI README (#28).
+- `CLAUDE.md` template now points at `api.flagify.dev` and includes an Integrations section (#29, #30, #31).
+
 ## [v1.2.0](https://github.com/flagifyhq/cli/releases/tag/v1.2.0) — 2026-04-13
 
 ### Features
