@@ -69,6 +69,14 @@ var keysGenerateCmd = &cobra.Command{
 			return handleAccessError(err)
 		}
 
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(map[string]any{
+				"environment":    env,
+				"publishableKey": keys.PublishableKey,
+				"secretKey":      keys.SecretKey,
+			})
+		}
+
 		fmt.Println(ui.Success(fmt.Sprintf("Generated API keys for %s", ui.Cyan(env))))
 		fmt.Println()
 		fmt.Println(ui.KeyValue("Publishable:", keys.PublishableKey))
@@ -109,6 +117,10 @@ var keysListCmd = &cobra.Command{
 		keys, err := client.ListKeys(envID)
 		if err != nil {
 			return handleAccessError(err)
+		}
+
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(keys)
 		}
 
 		if len(keys) == 0 {
@@ -177,6 +189,9 @@ var keysRevokeCmd = &cobra.Command{
 }
 
 func init() {
+	ui.AddFormatFlag(keysListCmd)
+	ui.AddFormatFlag(keysGenerateCmd)
+
 	keysCmd.AddCommand(keysGenerateCmd)
 	keysCmd.AddCommand(keysListCmd)
 	keysCmd.AddCommand(keysRevokeCmd)

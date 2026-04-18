@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -115,14 +114,8 @@ var flagsListCmd = &cobra.Command{
 			return nil
 		}
 
-		format, _ := cmd.Flags().GetString("format")
-		if format == "json" {
-			data, err := json.MarshalIndent(flags, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal flags: %w", err)
-			}
-			fmt.Println(string(data))
-			return nil
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(flags)
 		}
 
 		rows := make([][]string, len(flags))
@@ -397,14 +390,8 @@ var flagsGetCmd = &cobra.Command{
 			return fmt.Errorf("flag %q not found in project", key)
 		}
 
-		format, _ := cmd.Flags().GetString("format")
-		if format == "json" {
-			data, err := json.MarshalIndent(flag, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal flag: %w", err)
-			}
-			fmt.Println(string(data))
-			return nil
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(flag)
 		}
 
 		fmt.Println(ui.KeyValue("Key", ui.Bold(flag.Key)))
@@ -431,8 +418,8 @@ var flagsGetCmd = &cobra.Command{
 }
 
 func init() {
-	flagsListCmd.Flags().String("format", "table", "Output format (table, json)")
-	flagsGetCmd.Flags().String("format", "table", "Output format (table, json)")
+	ui.AddFormatFlag(flagsListCmd)
+	ui.AddFormatFlag(flagsGetCmd)
 	flagsCreateCmd.Flags().StringP("type", "t", "boolean", "Flag type (boolean, string, number, json)")
 	flagsCreateCmd.Flags().String("description", "", "Flag description")
 	flagsToggleCmd.Flags().BoolP("all", "a", false, "Toggle in all environments")

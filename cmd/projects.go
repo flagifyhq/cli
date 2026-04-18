@@ -37,6 +37,10 @@ var projectsListCmd = &cobra.Command{
 			return handleAccessError(err)
 		}
 
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(projects)
+		}
+
 		if len(projects) == 0 {
 			fmt.Println(ui.Info("No projects found."))
 			return nil
@@ -69,6 +73,10 @@ var projectsGetCmd = &cobra.Command{
 		project, err := client.GetProject(args[0])
 		if err != nil {
 			return handleAccessError(err)
+		}
+
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(project)
 		}
 
 		fmt.Println(ui.KeyValue("ID:", ui.Dim(project.ID)))
@@ -173,6 +181,9 @@ var projectsPickCmd = &cobra.Command{
 }
 
 func init() {
+	ui.AddFormatFlag(projectsListCmd)
+	ui.AddFormatFlag(projectsGetCmd)
+
 	projectsCmd.AddCommand(projectsListCmd)
 	projectsCmd.AddCommand(projectsGetCmd)
 	projectsCmd.AddCommand(projectsDeleteCmd)

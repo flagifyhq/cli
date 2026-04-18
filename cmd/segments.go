@@ -22,7 +22,7 @@ var segmentsListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
 		}
@@ -35,6 +35,10 @@ var segmentsListCmd = &cobra.Command{
 		segments, err := client.ListSegments(project)
 		if err != nil {
 			return fmt.Errorf("failed to list segments: %w", err)
+		}
+
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(segments)
 		}
 
 		if len(segments) == 0 {
@@ -67,7 +71,7 @@ var segmentsCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.Project)
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
 		matchType, _ := cmd.Flags().GetString("match")
 		rulesRaw, _ := cmd.Flags().GetString("rules")
 		if project == "" {
@@ -152,11 +156,10 @@ var segmentsDeleteCmd = &cobra.Command{
 func init() {
 	segmentsCreateCmd.Flags().String("match", "ALL", "Match type (ALL or ANY)")
 	segmentsCreateCmd.Flags().String("rules", "", `Rules as JSON array, e.g. '[{"attribute":"plan","operator":"equals","value":"pro"}]'`)
+	ui.AddFormatFlag(segmentsListCmd)
 
 	segmentsCmd.AddCommand(segmentsListCmd)
 	segmentsCmd.AddCommand(segmentsCreateCmd)
 	segmentsCmd.AddCommand(segmentsDeleteCmd)
 	rootCmd.AddCommand(segmentsCmd)
-
-	// suppress unused import
 }
