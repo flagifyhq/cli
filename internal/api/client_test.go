@@ -359,6 +359,40 @@ func TestClientRevokeKeys(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestClientRevokeKeyByID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/environments/env1/keys/key_abc/revoke", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	err := client.RevokeKeyByID("env1", "key_abc")
+	require.NoError(t, err)
+}
+
+func TestClientRevokeKeyByEnv(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/projects/proj1/environments/production/keys/key_abc/revoke", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	err := client.RevokeKeyByEnv("proj1", "production", "key_abc")
+	require.NoError(t, err)
+}
+
 func TestClientNoToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"))

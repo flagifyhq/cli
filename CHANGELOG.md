@@ -2,6 +2,16 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.6.0](https://github.com/flagifyhq/cli/releases/tag/v1.6.0) — 2026-04-19
+
+### Breaking changes
+
+- **`flagify keys revoke` no longer revokes every key by default.** The command now requires one of three selectors: a positional `[prefix]` (revoke a single key by prefix, resolved via `flagify keys list`), `--id <ulid>` (revoke a specific key by ULID when prefixes collide), or `--all` (the previous env-wide behavior, now explicit and opt-in). Passing none of them returns an error instead of silently revoking everything. If you have CI that relied on the no-argument form, add `--all` to restore the old behavior. The single-key path hits the project-scoped `POST /v1/projects/{pid}/environments/{env}/keys/{kid}/revoke` endpoint and emits the existing `apikey.revoked` audit event (distinct from the `apikey.all_revoked` event that `--all` produces), so audit trails can tell the two flows apart.
+
+### Improvements
+
+- The confirmation prompt for `flagify keys revoke` now colours `secret` key types in red so the higher-blast-radius action stands out from a `publishable` revoke.
+
 ## [v1.5.0](https://github.com/flagifyhq/cli/releases/tag/v1.5.0) — 2026-04-19
 
 ### Features

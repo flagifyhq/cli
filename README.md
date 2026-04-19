@@ -348,16 +348,33 @@ flagify keys list -p proj_xxx -e development --format json
 
 ### `flagify keys revoke`
 
-Revoke all active API keys for an environment.
+Revoke a single API key by prefix (or `--id`), or revoke every active key in the environment with `--all`. Passing none of the three is treated as an error so the destructive form is always explicit.
 
 ```bash
-flagify keys revoke -p proj_xxx -e development
+# Revoke just one key — pass the prefix from 'keys list'
+flagify keys revoke pk_dev_abc -p proj_xxx -e development
+```
+
+```bash
+# Revoke a specific key by ULID (use when two keys share a prefix)
+flagify keys revoke --id key_01J... -p proj_xxx -e development
+```
+
+```bash
+# Revoke every active key in the environment (opt-in, destructive)
+flagify keys revoke --all -p proj_xxx -e development
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `[prefix]` | | Positional: prefix of the key to revoke (from `flagify keys list`) |
+| `--id` | | Revoke the key with this ULID (use when prefixes collide) |
+| `--all` | | Revoke every active API key in the environment |
 | `--project` | `-p` | Project key (required) |
 | `--environment` | `-e` | Environment key (required) |
+| `--yes` | `-y` | Skip the confirmation prompt |
+
+`[prefix]`, `--id`, and `--all` are mutually exclusive.
 
 ---
 

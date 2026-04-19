@@ -437,6 +437,16 @@ func (c *Client) RevokeKeysByEnv(projectID, envKey string) error {
 	return c.Post("/v1/projects/"+projectID+"/environments/"+envKey+"/keys/revoke", nil, nil)
 }
 
+// RevokeKeyByID revokes a single API key by its ID.
+func (c *Client) RevokeKeyByID(environmentID, keyID string) error {
+	return c.Post("/v1/environments/"+environmentID+"/keys/"+keyID+"/revoke", nil, nil)
+}
+
+// RevokeKeyByEnv is the slug-friendly variant of RevokeKeyByID.
+func (c *Client) RevokeKeyByEnv(projectID, envKey, keyID string) error {
+	return c.Post("/v1/projects/"+projectID+"/environments/"+envKey+"/keys/"+keyID+"/revoke", nil, nil)
+}
+
 type HealthIssue struct {
 	FlagID      string `json:"flagId"`
 	FlagKey     string `json:"flagKey"`
