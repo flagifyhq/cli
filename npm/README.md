@@ -60,6 +60,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify flags get` | Get details for a specific flag with per-environment status (`--format json`) |
 | `flagify flags create` | Create a new feature flag (kebab-case keys enforced) |
 | `flagify flags toggle` | Enable or disable a flag (interactive picker if no key given, supports `--all`) |
+| `flagify flags health` | Detect configuration issues (env mismatches, no-op targeting rules) (`--format json`) |
 | `flagify keys generate` | Generate API key pair for environment (`--format json`) |
 | `flagify keys list` | List API keys for environment (`--format json`) |
 | `flagify keys revoke` | Revoke all API keys for environment |

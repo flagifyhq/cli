@@ -489,3 +489,46 @@ func TestClientSetTargetingRules(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 }
+
+func TestClientGetFlagHealth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/v1/projects/p1/overview/health", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]api.HealthIssue{
+			{
+				FlagID:   "f1",
+				FlagKey:  "new-checkout",
+				FlagName: "New Checkout",
+				Type:     "env_mismatch",
+				Severity: "critical",
+				Message:  "Active in production but inactive in Staging",
+			},
+			{
+				FlagID:      "f1",
+				FlagKey:     "new-checkout",
+				FlagName:    "New Checkout",
+				Type:        "rule_value_matches_default",
+				Severity:    "warning",
+				Environment: "production",
+				RuleID:      "tr1",
+				Message:     "Rule serves true but defaultValue is also true",
+				Fix:         "Change defaultValue or remove the rule.",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("token")
+	client.SetBaseURL(server.URL)
+
+	issues, err := client.GetFlagHealth("p1")
+	require.NoError(t, err)
+	assert.Len(t, issues, 2)
+	assert.Equal(t, "env_mismatch", issues[0].Type)
+	assert.Equal(t, "rule_value_matches_default", issues[1].Type)
+	assert.Equal(t, "production", issues[1].Environment)
+	assert.Equal(t, "tr1", issues[1].RuleID)
+	assert.NotEmpty(t, issues[1].Fix)
+}

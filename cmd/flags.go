@@ -417,9 +417,83 @@ var flagsGetCmd = &cobra.Command{
 	},
 }
 
+var flagsHealthCmd = &cobra.Command{
+	Use:   "health",
+	Short: "Detect configuration issues across flags",
+	Long: `Detect configuration issues across all flags in the project:
+
+  • env_mismatch                — flag on in prod but off in the preceding env,
+                                  or value drift between prod and pre-prod.
+  • rule_value_matches_default  — targeting rule valueOverride equals the flag's
+                                  defaultValue, making the rule a no-op.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		if project == "" {
+			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+		}
+
+		client, err := getClient()
+		if err != nil {
+			return err
+		}
+
+		issues, err := client.GetFlagHealth(project)
+		if err != nil {
+			return handleAccessError(err)
+		}
+
+		if ui.IsJSON(cmd) {
+			return ui.PrintJSON(issues)
+		}
+
+		if len(issues) == 0 {
+			fmt.Println(ui.Success("No configuration issues detected."))
+			return nil
+		}
+
+		rows := make([][]string, len(issues))
+		for i, issue := range issues {
+			sev := issue.Severity
+			switch issue.Severity {
+			case "critical":
+				sev = ui.Red(issue.Severity)
+			case "warning":
+				sev = ui.Warn(issue.Severity)
+			}
+			env := issue.Environment
+			if env == "" {
+				env = ui.Dim("—")
+			}
+			rows[i] = []string{issue.FlagKey, env, sev, issue.Type, issue.Message}
+		}
+		fmt.Println(ui.Table([]string{"Flag", "Environment", "Severity", "Type", "Message"}, rows))
+
+		hasFixHints := false
+		for _, issue := range issues {
+			if issue.Fix != "" {
+				hasFixHints = true
+				break
+			}
+		}
+		footer := fmt.Sprintf("%d issue(s) detected.", len(issues))
+		if hasFixHints {
+			footer += " Fix hints available in JSON output (--format json)."
+		} else {
+			footer += " Use --format json for the full payload."
+		}
+		fmt.Printf("\n%s\n", ui.Dim(footer))
+		return nil
+	},
+}
+
 func init() {
 	ui.AddFormatFlag(flagsListCmd)
 	ui.AddFormatFlag(flagsGetCmd)
+	ui.AddFormatFlag(flagsHealthCmd)
 	flagsCreateCmd.Flags().StringP("type", "t", "boolean", "Flag type (boolean, string, number, json)")
 	flagsCreateCmd.Flags().String("description", "", "Flag description")
 	flagsToggleCmd.Flags().BoolP("all", "a", false, "Toggle in all environments")
@@ -428,5 +502,6 @@ func init() {
 	flagsCmd.AddCommand(flagsGetCmd)
 	flagsCmd.AddCommand(flagsCreateCmd)
 	flagsCmd.AddCommand(flagsToggleCmd)
+	flagsCmd.AddCommand(flagsHealthCmd)
 	rootCmd.AddCommand(flagsCmd)
 }
