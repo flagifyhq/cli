@@ -436,3 +436,21 @@ func (c *Client) ListKeysByEnv(projectID, envKey string) ([]APIKey, error) {
 func (c *Client) RevokeKeysByEnv(projectID, envKey string) error {
 	return c.Post("/v1/projects/"+projectID+"/environments/"+envKey+"/keys/revoke", nil, nil)
 }
+
+type HealthIssue struct {
+	FlagID      string `json:"flagId"`
+	FlagKey     string `json:"flagKey"`
+	FlagName    string `json:"flagName"`
+	Type        string `json:"type"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	Environment string `json:"environment,omitempty"`
+	RuleID      string `json:"ruleId,omitempty"`
+	Fix         string `json:"fix,omitempty"`
+}
+
+func (c *Client) GetFlagHealth(projectID string) ([]HealthIssue, error) {
+	var result []HealthIssue
+	err := c.Get("/v1/projects/"+projectID+"/overview/health", &result)
+	return result, err
+}

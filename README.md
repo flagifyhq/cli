@@ -289,6 +289,27 @@ flagify flags toggle -p proj_xxx
 
 ---
 
+### `flagify flags health`
+
+Scan the project for flag configuration issues. Detects:
+
+- **`env_mismatch`** — flag is on in production but off in the preceding environment, or value drift between prod and pre-prod.
+- **`rule_value_matches_default`** — a targeting rule's `valueOverride` equals the flag's `defaultValue`, making the rule a no-op (users outside the rollout fall through to `defaultValue` and receive the same value the rule would serve).
+
+```bash
+flagify flags health -p proj_xxx
+flagify flags health -p proj_xxx --format json
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project key (required) |
+| `--format` | | Output format (`table`, `json`) |
+
+Exit code is 0 whether issues are found or not — use `--format json` and jq/grep for CI gating.
+
+---
+
 ### `flagify keys generate`
 
 Generate an API key pair (publishable + secret) for an environment. Keys are required for SDK integration.
