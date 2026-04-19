@@ -471,7 +471,21 @@ var flagsHealthCmd = &cobra.Command{
 			rows[i] = []string{issue.FlagKey, env, sev, issue.Type, issue.Message}
 		}
 		fmt.Println(ui.Table([]string{"Flag", "Environment", "Severity", "Type", "Message"}, rows))
-		fmt.Printf("\n%s\n", ui.Dim(fmt.Sprintf("%d issue(s) detected. Fix hints available in JSON output (--format json).", len(issues))))
+
+		hasFixHints := false
+		for _, issue := range issues {
+			if issue.Fix != "" {
+				hasFixHints = true
+				break
+			}
+		}
+		footer := fmt.Sprintf("%d issue(s) detected.", len(issues))
+		if hasFixHints {
+			footer += " Fix hints available in JSON output (--format json)."
+		} else {
+			footer += " Use --format json for the full payload."
+		}
+		fmt.Printf("\n%s\n", ui.Dim(footer))
 		return nil
 	},
 }
