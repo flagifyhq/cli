@@ -63,7 +63,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify flags health` | Detect configuration issues (env mismatches, no-op targeting rules) (`--format json`) |
 | `flagify keys generate` | Generate API key pair for environment (`--format json`) |
 | `flagify keys list` | List API keys for environment (`--format json`) |
-| `flagify keys revoke` | Revoke all API keys for environment |
+| `flagify keys revoke <prefix>` | Revoke a single API key by prefix (e.g. `flagify keys revoke pk_dev_abc`). Use `--id <ulid>` for explicit targeting, or `--all` to revoke every active key in the environment |
 | `flagify segments list` | List user segments in a project (`--format json`) |
 | `flagify segments create <name>` | Create a segment with optional JSON rules (`--match`, `--rules`) |
 | `flagify segments delete <id>` | Delete a segment by ID |
