@@ -2,6 +2,12 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v1.5.0](https://github.com/flagifyhq/cli/releases/tag/v1.5.0) — 2026-04-19
+
+### Features
+
+- **`flagify flags health`** — scan the current project for flag configuration issues. Surfaces two classes of problem today: `env_mismatch` (flag on in prod but off in the preceding environment, or value drift) and the new `rule_value_matches_default` (a targeting rule whose `valueOverride` equals the flag's `defaultValue`, making the rule a silent no-op because users outside the rollout fall through to `defaultValue` and receive the same value the rule would serve). Table output colours severity and shows an environment pill for rule-scoped issues; `--format json` returns the full payload including a `fix` hint. Exit code is always 0 — use `jq -e` for CI gating. Pairs with the API health check extended in the same session (#38).
+
 ## [v1.4.0](https://github.com/flagifyhq/cli/releases/tag/v1.4.0) — 2026-04-18
 
 ### Bug fixes
