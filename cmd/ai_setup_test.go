@@ -27,6 +27,7 @@ func TestGenerateCursor(t *testing.T) {
 	assert.Contains(t, string(content), "Flagify Feature Flags")
 	assert.Contains(t, string(content), "isEnabled(")
 	assert.Contains(t, string(content), "@flagify/react")
+	assert.Contains(t, string(content), "flagify types")
 }
 
 func TestGenerateWindsurf(t *testing.T) {
@@ -43,6 +44,7 @@ func TestGenerateWindsurf(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "Flagify Feature Flags")
 	assert.Contains(t, string(content), "useFlag")
+	assert.Contains(t, string(content), "flagify types")
 }
 
 func TestGenerateCopilot(t *testing.T) {
@@ -59,6 +61,7 @@ func TestGenerateCopilot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "Flagify Feature Flags")
 	assert.Contains(t, string(content), "isEnabled")
+	assert.Contains(t, string(content), "flagify types")
 }
 
 func TestGenerateClaude(t *testing.T) {
@@ -75,6 +78,8 @@ func TestGenerateClaude(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "Feature Flags")
 	assert.Contains(t, string(content), "@flagify/node")
+	assert.Contains(t, string(content), "flagify types")
+	assert.Contains(t, string(content), "FLAG_KEYS")
 
 	// Check slash commands were created
 	_, err = os.ReadFile(filepath.Join(dir, ".claude", "commands", "flagify-create.md"))

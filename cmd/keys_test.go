@@ -36,24 +36,33 @@ func writeTestConfig(t *testing.T, apiURL string) {
 // runRoot executes the root command with the given argv and returns (output, error).
 // Flags set by a previous run are reset on exit to keep tests independent.
 func runRoot(t *testing.T, argv ...string) (string, error) {
+	stdout, stderr, err := runRootCapture(t, argv...)
+	return stdout + stderr, err
+}
+
+// runRootCapture executes the root command and returns stdout and stderr
+// separately so tests can assert on warnings emitted via fmt.Fprintln(os.Stderr, …).
+func runRootCapture(t *testing.T, argv ...string) (string, string, error) {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 	rootCmd.SetArgs(argv)
 
-	// Silence stdout writes from ui.Success / fmt.Println so go test output is tidy.
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	origStdout, origStderr := os.Stdout, os.Stderr
+	outR, outW, _ := os.Pipe()
+	errR, errW, _ := os.Pipe()
+	os.Stdout, os.Stderr = outW, errW
 	defer func() {
-		os.Stdout = origStdout
+		os.Stdout, os.Stderr = origStdout, origStderr
 	}()
 
 	err := rootCmd.Execute()
 
-	w.Close()
-	captured, _ := io.ReadAll(r)
+	outW.Close()
+	errW.Close()
+	capturedStdout, _ := io.ReadAll(outR)
+	capturedStderr, _ := io.ReadAll(errR)
 
 	t.Cleanup(func() {
 		rootCmd.SetArgs(nil)
@@ -61,7 +70,7 @@ func runRoot(t *testing.T, argv ...string) (string, error) {
 		keysRevokeCmd.Flags().Set("id", "")
 	})
 
-	return buf.String() + string(captured), err
+	return buf.String() + string(capturedStdout), string(capturedStderr), err
 }
 
 func TestKeysRevoke_RequiresSelector(t *testing.T) {

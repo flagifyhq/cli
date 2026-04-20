@@ -58,6 +58,7 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 
 - Flags: flagify flags list [--format json] | flagify flags get <key> [--format json] | flagify flags create <key> --type boolean|string|number|json | flagify flags toggle <key> --environment <env>
 - Keys: flagify keys list --environment <env> | flagify keys generate --environment <env> | flagify keys revoke --environment <env>
+- Typed keys: flagify types --typescript (./flagify.ts with FLAG_KEYS + FlagKey) | flagify types --go --package <pkg> (./flagify.go with FlagXxx consts). Regenerate on flag changes; prefer FLAG_KEYS['name'] over raw strings.
 - Config: flagify config | flagify config set <key> <value>
 - Valid config keys: api-url, workspace, project, environment
 
