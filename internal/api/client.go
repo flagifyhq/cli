@@ -98,6 +98,9 @@ func (c *Client) doOnce(method, path string, body, result any) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	// Tags every CLI-originated audit event with `source: "cli"` so operators
+	// can tell them apart from MCP (`mcp`) or console (`web`) entries.
+	req.Header.Set("X-Flagify-Source", "cli")
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
