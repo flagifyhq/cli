@@ -2,11 +2,15 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
-## Unreleased
+## [v1.7.0](https://github.com/flagifyhq/cli/releases/tag/v1.7.0) — 2026-04-20
 
 ### Features
 
-- **`flagify types`** — new command that generates a source file exporting every flag key in the current project as a typed constant. Supports `--typescript` (writes `flagify.ts` with `FLAG_KEYS` object + `FlagKey` union type) and `--go` (writes `flagify.go` with `Flag<PascalCase>` consts under a configurable `--package`). Keys are sorted alphabetically for stable diffs, the output file header marks the file as auto-generated, and invalid kebab keys (legacy flags created outside the CLI) are skipped with a warning when emitting Go. Project names fetched from the dashboard are sanitized before landing in the file header so free-text fields cannot break out of the leading comment and produce broken source. When `--output` points at an existing file that does *not* carry the Flagify auto-generated header, the command prompts for confirmation (bypassed with `--yes`) so a hand-authored `flags.ts`/`flags.go` is never clobbered on first run. Run it whenever flags change and commit the regenerated file alongside the change so application code catches typos in flag names at compile time instead of at runtime.
+- **`flagify types`** — new command that generates a source file exporting every flag key in the current project as a typed constant. Supports `--typescript` (writes `flagify.ts` with `FLAG_KEYS` object + `FlagKey` union type) and `--go` (writes `flagify.go` with `Flag<PascalCase>` consts under a configurable `--package`). Keys are sorted alphabetically for stable diffs, the output file header marks the file as auto-generated, and invalid kebab keys (legacy flags created outside the CLI) are skipped with a warning when emitting Go. Project names fetched from the dashboard are sanitized before landing in the file header so free-text fields cannot break out of the leading comment and produce broken source. When `--output` points at an existing file that does *not* carry the Flagify auto-generated header, the command prompts for confirmation (bypassed with `--yes`) so a hand-authored `flags.ts`/`flags.go` is never clobbered on first run. Run it whenever flags change and commit the regenerated file alongside the change so application code catches typos in flag names at compile time instead of at runtime (#40).
+
+### Documentation
+
+- **`flagify ai-setup` templates** gain a section documenting `flagify types` and the `FLAG_KEYS` / `FlagKey` import pattern, so AI tooling (Claude Code, Cursor, Copilot, Windsurf) steers new code toward typed flag keys instead of raw string literals.
 
 ## [v1.6.0](https://github.com/flagifyhq/cli/releases/tag/v1.6.0) — 2026-04-19
 
