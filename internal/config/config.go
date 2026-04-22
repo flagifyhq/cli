@@ -1,11 +1,14 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 )
 
+// Config is the flat, single-account view of the active profile. It is kept as
+// a compatibility shim so every cmd/*.go caller that used config.Load/Save keeps
+// working while the multi-account store lands incrementally. New code should
+// prefer LoadStore / LoadOrMigrate / SaveStore directly.
 type Config struct {
 	AccessToken  string `json:"accessToken,omitempty"`
 	RefreshToken string `json:"refreshToken,omitempty"`
@@ -17,6 +20,10 @@ type Config struct {
 	ProjectID    string `json:"projectId,omitempty"`
 	Environment  string `json:"environment,omitempty"`
 	Token        string `json:"token,omitempty"` // deprecated, kept for compat
+
+	// profile records which v2 account the shim materialized from / will write to.
+	// Unexported so json.Marshal ignores it. Empty string means "fall back to Current".
+	profile string
 }
 
 // IsLoggedIn returns true if the user has a valid access token.
@@ -32,6 +39,7 @@ func (c *Config) GetToken() string {
 	return c.Token
 }
 
+// Path returns the absolute path to ~/.flagify/config.json.
 func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -40,41 +48,87 @@ func Path() (string, error) {
 	return filepath.Join(home, ".flagify", "config.json"), nil
 }
 
+// Load returns the flat Config view of the current profile, migrating a v1 file
+// in place on first read. A missing file yields an empty Config, matching the
+// legacy behavior callers already handle.
 func Load() (*Config, error) {
-	path, err := Path()
+	s, err := LoadOrMigrate()
 	if err != nil {
-		return nil, err
+		return &Config{}, err
 	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &Config{}, nil
-		}
-		return nil, err
-	}
-
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
+	return configFromStore(s), nil
 }
 
+// Save writes the given Config back to the active profile. If the store has no
+// current profile yet (first login), one named DefaultProfile is created and
+// marked as current, preserving the single-account muscle memory of `flagify login`.
 func Save(cfg *Config) error {
-	path, err := Path()
+	if cfg == nil {
+		return nil
+	}
+
+	s, err := LoadOrMigrate()
 	if err != nil {
 		return err
 	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
+	if s.Accounts == nil {
+		s.Accounts = map[string]*Account{}
 	}
 
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
+	profile := cfg.profile
+	if profile == "" {
+		profile = s.Current
+	}
+	if profile == "" {
+		profile = DefaultProfile
 	}
 
-	return os.WriteFile(path, data, 0o600)
+	acc := s.Accounts[profile]
+	if acc == nil {
+		acc = &Account{}
+		s.Accounts[profile] = acc
+	}
+
+	token := cfg.AccessToken
+	if token == "" && cfg.Token != "" {
+		token = cfg.Token
+	}
+	acc.AccessToken = token
+	acc.RefreshToken = cfg.RefreshToken
+	acc.APIUrl = cfg.APIUrl
+	acc.ConsoleUrl = cfg.ConsoleUrl
+	acc.Defaults.Workspace = cfg.Workspace
+	acc.Defaults.WorkspaceID = cfg.WorkspaceID
+	acc.Defaults.Project = cfg.Project
+	acc.Defaults.ProjectID = cfg.ProjectID
+	acc.Defaults.Environment = cfg.Environment
+
+	if s.Current == "" {
+		s.Current = profile
+	}
+
+	return SaveStore(s)
+}
+
+// configFromStore materializes the flat Config view of the store's active profile.
+func configFromStore(s *Store) *Config {
+	if s == nil || s.Current == "" {
+		return &Config{}
+	}
+	acc := s.Accounts[s.Current]
+	if acc == nil {
+		return &Config{}
+	}
+	return &Config{
+		AccessToken:  acc.AccessToken,
+		RefreshToken: acc.RefreshToken,
+		APIUrl:       acc.APIUrl,
+		ConsoleUrl:   acc.ConsoleUrl,
+		Workspace:    acc.Defaults.Workspace,
+		WorkspaceID:  acc.Defaults.WorkspaceID,
+		Project:      acc.Defaults.Project,
+		ProjectID:    acc.Defaults.ProjectID,
+		Environment:  acc.Defaults.Environment,
+		profile:      s.Current,
+	}
 }
