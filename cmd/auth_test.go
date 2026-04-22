@@ -339,3 +339,36 @@ func TestLogin_DoesNotBlockWhenAnotherProfileIsLoggedIn(t *testing.T) {
 		t.Fatal("authLoginCmd must accept --profile")
 	}
 }
+
+// --- deprecation of top-level login/logout -------------------------------
+
+func TestTopLevelLoginLogout_AreHidden(t *testing.T) {
+	if !loginCmd.Hidden {
+		t.Fatal("loginCmd must be Hidden so help no longer advertises it")
+	}
+	if !logoutCmd.Hidden {
+		t.Fatal("logoutCmd must be Hidden so help no longer advertises it")
+	}
+	if authLoginCmd.Hidden {
+		t.Fatal("authLoginCmd must remain visible — it is the canonical command")
+	}
+	if authLogoutCmd.Hidden {
+		t.Fatal("authLogoutCmd must remain visible — it is the canonical command")
+	}
+}
+
+func TestTopLevelLogout_EmitsDeprecationWarning(t *testing.T) {
+	resetAuthFlags(t)
+	seedStore(t, &config.Store{Version: config.StoreVersion})
+
+	_, stderr, err := runRootCapture(t, "logout")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stderr, "flagify logout` is deprecated") {
+		t.Fatalf("expected deprecation warning on stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "flagify auth logout") {
+		t.Fatalf("warning must point at canonical command, got: %q", stderr)
+	}
+}

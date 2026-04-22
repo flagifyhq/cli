@@ -60,9 +60,13 @@ const (
 )
 
 var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Authenticate with Flagify (alias for 'flagify auth login')",
-	RunE:  runLogin,
+	Use:    "login",
+	Short:  "Deprecated: use 'flagify auth login'",
+	Hidden: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Fprintln(os.Stderr, ui.Warning("`flagify login` is deprecated and will be removed in v2. Use `flagify auth login` instead."))
+		return runLogin(cmd, args)
+	},
 }
 
 var authLoginCmd = &cobra.Command{
@@ -253,9 +257,11 @@ func loginClassic(cfg *config.Config) error {
 }
 
 var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Sign out of the current Flagify profile",
+	Use:    "logout",
+	Short:  "Deprecated: use 'flagify auth logout'",
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Fprintln(os.Stderr, ui.Warning("`flagify logout` is deprecated and will be removed in v2. Use `flagify auth logout` instead."))
 		return runLogout("", false)
 	},
 }

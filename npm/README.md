@@ -27,10 +27,10 @@ echo 'alias flag="flagify"' >> ~/.zshrc && source ~/.zshrc
 
 ```bash
 # Sign in (creates a profile called "default" on first run)
-flagify login
+flagify auth login
 
 # Or add a named profile — handy when you juggle work and personal accounts
-flagify login --profile work
+flagify auth login --profile work
 flagify auth list
 flagify auth switch personal
 
@@ -53,11 +53,10 @@ flagify flags toggle my-flag -p <project-id>
 
 | Command | Description |
 |---------|-------------|
-| `flagify login` | Sign in (browser flow by default; `--classic` for email/password; `--profile <name>` to add a second identity without signing out of the first) |
-| `flagify logout` | Sign out of the active profile |
+| `flagify auth login` | Sign in (browser flow by default; `--classic` for email/password; `--profile <name>` to add a second identity without signing out of the first) |
+| `flagify auth logout` | Sign out of the active profile (`--profile <name>` or `--all`) |
 | `flagify auth list` | List signed-in profiles (`--format json`) |
 | `flagify auth switch <name>` | Set the active profile |
-| `flagify auth logout [--profile <name> \| --all]` | Sign out of a specific profile or of every profile |
 | `flagify auth remove <name>` | Delete a profile and any repo bindings that point to it |
 | `flagify auth rename <old> <new>` | Rename a profile and update bindings |
 | `flagify whoami` | Show the current user and pinned profile (`--format json`) |

@@ -93,12 +93,14 @@ flag flags list -p proj_xxx
 Sign in via the browser (default) or with email/password (`--classic`). Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
 
 ```bash
-flagify login
-flagify login --profile work       # add or refresh a named profile
-flagify login --classic            # fall back to email/password
+flagify auth login
+flagify auth login --profile work       # add or refresh a named profile
+flagify auth login --classic            # fall back to email/password
 ```
 
-Re-running `flagify login` does not error when another profile is already signed in — pass `--profile` to target a specific one. The default profile is called `default` and is created on first login.
+Re-running `flagify auth login` does not error when another profile is already signed in — pass `--profile` to target a specific one. The default profile is called `default` and is created on first login.
+
+> The top-level `flagify login` / `flagify logout` still work as hidden aliases but print a deprecation notice. They will be removed in v2. Use `flagify auth login` / `flagify auth logout` going forward.
 
 ### `flagify whoami`
 
@@ -119,7 +121,7 @@ flagify whoami --format json       # { "profile": "work", "user": {...} }
 Every set of credentials lives under a named profile inside `~/.flagify/config.json`. Switch between profiles, list them, log out of one without touching the rest, or remove a profile entirely.
 
 ```bash
-flagify auth login --profile work       # same as `flagify login --profile work`
+flagify auth login --profile work       # add or refresh a named profile
 flagify auth list                        # tabular view with the active profile marked
 flagify auth list --format json
 flagify auth switch personal             # change the active profile
