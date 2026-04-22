@@ -41,6 +41,9 @@ The official Flagify CLI for managing feature flags from the terminal. Built in 
 
 - [Installation](#installation)
 - [Authentication](#authentication)
+- [Multi-account profiles](#multi-account-profiles)
+- [Project file](#project-file)
+- [Environment variables](#environment-variables)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Development](#development)
@@ -87,25 +90,167 @@ flag flags list -p proj_xxx
 
 ## Authentication
 
+Sign in via the browser (default) or with email/password (`--classic`). Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
+
 ```bash
 flagify login
+flagify login --profile work       # add or refresh a named profile
+flagify login --classic            # fall back to email/password
 ```
 
-Prompts for email and password. Credentials are stored in `~/.flagify/config.json`.
+Re-running `flagify login` does not error when another profile is already signed in — pass `--profile` to target a specific one. The default profile is called `default` and is created on first login.
 
 ### `flagify whoami`
 
-Show the currently authenticated user. Exits with an error if no session is stored.
+Show the currently resolved user and which profile the invocation is using.
 
 ```bash
 flagify whoami
-# ✓ Jane Doe (jane@company.com)
-flagify whoami --format json
+# ✓ Jane Doe (jane@company.com)  profile: work
+flagify whoami --format json       # { "profile": "work", "user": {...} }
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--format` | | Output format (`table`, `json`) |
+
+## Multi-account profiles
+
+Every set of credentials lives under a named profile inside `~/.flagify/config.json`. Switch between profiles, list them, log out of one without touching the rest, or remove a profile entirely.
+
+```bash
+flagify auth login --profile work       # same as `flagify login --profile work`
+flagify auth list                        # tabular view with the active profile marked
+flagify auth list --format json
+flagify auth switch personal             # change the active profile
+flagify auth logout                      # sign out of the active profile (keeps defaults)
+flagify auth logout --profile work       # sign out of a specific profile
+flagify auth logout --all                # sign out of every profile
+flagify auth remove work                 # delete a profile and its repo bindings
+flagify auth rename work acme            # rename and update any bindings that point to it
+flagify auth whoami                      # alias of `flagify whoami`
+```
+
+Profiles are local to each machine. The names are yours — `work`, `personal`, `client-acme`, whatever fits. A repo committing a `.flagify/project.json` can hint at a preferred profile name, but it is never required.
+
+### Binding a repo to a profile
+
+When you clone a repo that already has `.flagify/project.json`, the CLI needs to know which local profile to use. If the committed `preferredProfile` hint matches one of your profiles, it is picked automatically. Otherwise, bind explicitly:
+
+```bash
+cd my-repo
+flagify project bind --profile work
+```
+
+Bindings are stored under `bindings` in `~/.flagify/config.json` keyed by the absolute repo path. They are never committed.
+
+### How the CLI picks a profile
+
+Precedence when several signals could choose a profile, highest first:
+
+1. `--profile <name>` on the command line.
+2. `FLAGIFY_PROFILE` in the environment.
+3. A local binding for the directory containing `.flagify/project.json`.
+4. `preferredProfile` from `.flagify/project.json`, if that name exists locally.
+5. The `current` profile from `~/.flagify/config.json`.
+6. The sole profile, when exactly one exists.
+
+If none of those produce a single unambiguous answer and more than one profile is signed in, the CLI errors with an actionable message pointing at `flagify auth list`.
+
+## Project file
+
+`flagify init` writes a committable `.flagify/project.json` that pins workspace, project, and environment for the repo without ever containing tokens.
+
+```json
+{
+  "version": 1,
+  "workspaceId": "ws_01J...",
+  "workspace": "acme",
+  "projectId": "pr_01J...",
+  "project": "api",
+  "environment": "development",
+  "preferredProfile": "work"
+}
+```
+
+`preferredProfile` is a hint. Teammates with different local profile names can still use the same project file — the CLI falls through to binding or `current` when the hint does not match a local profile.
+
+### `flagify init`
+
+Create or update the project file for the current repo.
+
+```bash
+flagify init --workspace-id ws_01J... --project-id pr_01J... --environment development
+flagify init --print               # print the JSON it would write, don't touch disk
+flagify init --force               # overwrite an existing project file in non-interactive shells
+```
+
+Idempotent: re-running with the same scope says `Already initialized` and leaves the file unchanged (same mtime). Running with a different scope prompts for confirmation in TTYs and errors in CI unless `--force` is passed.
+
+| Flag | Description |
+|------|-------------|
+| `--workspace-id` / `--workspace` | Workspace ULID or slug (one is required) |
+| `--project-id` / `--project` | Project ULID or slug (one is required) |
+| `--environment` | Environment key (defaults to `development`) |
+| `--preferred-profile` | Hint written to `.flagify/project.json` (defaults to the resolved profile) |
+| `--print` | Print the JSON without writing to disk |
+| `--force` | Overwrite an existing project file without prompting |
+
+### `flagify project bind`
+
+Bind the current repo to a local profile. Does not modify the committed project file.
+
+```bash
+flagify project bind --profile work
+```
+
+### `flagify project status`
+
+Alias of `flagify status`. Handy when you are already thinking in terms of the project file.
+
+### `flagify project set <field> <value>`
+
+Update a single field of `.flagify/project.json` in place.
+
+```bash
+flagify project set environment staging
+flagify project set preferred-profile work
+```
+
+Valid fields: `environment`, `project`, `project-id`, `workspace`, `workspace-id`, `preferred-profile`.
+
+## Environment variables
+
+Every `FLAGIFY_*` env var is honored at the same precedence layer — between CLI flags and the project file. Useful for CI and scripts.
+
+| Variable | Overrides |
+|----------|-----------|
+| `FLAGIFY_PROFILE` | Which profile to use (fails loud if the name does not exist) |
+| `FLAGIFY_WORKSPACE_ID` / `FLAGIFY_WORKSPACE` | Workspace (ID wins over slug at the same level) |
+| `FLAGIFY_PROJECT_ID` / `FLAGIFY_PROJECT` | Project (ID wins over slug) |
+| `FLAGIFY_ENVIRONMENT` | Environment key |
+| `FLAGIFY_API_URL` | API base URL |
+| `FLAGIFY_ACCESS_TOKEN` / `FLAGIFY_REFRESH_TOKEN` | Ephemeral tokens — the CLI will not persist refreshed tokens when these are set |
+
+### `flagify status`
+
+Show the resolved context for this invocation, with the source of each field.
+
+```bash
+flagify status
+# Profile       work            (profile-default)
+# User          Jane Doe <jane@acme.com>    (profile)
+# Workspace     acme (ws_01J...)            (project-file)
+# Project       api (pr_01J...)             (project-file)
+# Environment   staging                     (flag)
+# API URL       https://api.flagify.dev     (profile-default)
+# Project file  /repo/.flagify/project.json
+# Global store  ~/.flagify/config.json
+
+flagify status --format json | jq .
+```
+
+The `source` column in JSON mode answers "why is the CLI using this value?" — values are `flag`, `env`, `project-file`, `binding`, `profile-default`, or `default`.
 
 ## Commands
 
@@ -591,54 +736,61 @@ flagify version
 
 ## Configuration
 
-The CLI stores configuration in `~/.flagify/config.json`:
+The CLI stores configuration in `~/.flagify/config.json` under schema v2 (multi-account):
 
 ```json
 {
-  "accessToken": "eyJhbGci...",
-  "refreshToken": "eyJhbGci...",
-  "apiUrl": "https://api.flagify.dev",
-  "consoleUrl": "https://console.flagify.dev",
-  "workspace": "acme-corp",
-  "workspaceId": "01J5K8RQXHNZ4VMKD3GY7PSABET",
-  "project": "web-app",
-  "projectId": "01J5KBC3XPQR7WFMN4HY6TDASEV",
-  "environment": "development"
+  "version": 2,
+  "current": "work",
+  "accounts": {
+    "work": {
+      "accessToken": "eyJhbGci...",
+      "refreshToken": "eyJhbGci...",
+      "apiUrl": "https://api.flagify.dev",
+      "consoleUrl": "https://console.flagify.dev",
+      "user": { "id": "...", "email": "jane@acme.com", "name": "Jane Doe" },
+      "defaults": {
+        "workspace": "acme",
+        "workspaceId": "01J5K8...",
+        "project": "api",
+        "projectId": "01J5KB...",
+        "environment": "development"
+      }
+    },
+    "personal": { "accessToken": "...", "refreshToken": "..." }
+  },
+  "bindings": {
+    "/Users/jane/dev/acme-api": { "profile": "work" }
+  }
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `accessToken` | JWT access token (set via `flagify login`) |
-| `refreshToken` | JWT refresh token (set via `flagify login`) |
-| `apiUrl` | API base URL (default: `https://api.flagify.dev`) |
-| `consoleUrl` | Console URL (set via `flagify login`) |
-| `workspace` | Default workspace slug (set via `flagify workspaces pick`) |
-| `workspaceId` | Default workspace ID (set via `flagify workspaces pick`) |
-| `project` | Default project slug (set via `flagify projects pick`) |
-| `projectId` | Default project ID (set via `flagify projects pick`) |
-| `environment` | Default environment key (set via `flagify environments pick`) |
+| Top-level field | Description |
+|-----------------|-------------|
+| `version` | Schema version (currently `2`) |
+| `current` | Name of the active profile |
+| `accounts[<name>]` | One entry per signed-in identity; `defaults` mirrors the old flat scope fields |
+| `bindings[<path>]` | Local repo → profile mapping, written by `flagify project bind` |
 
-View current config:
+> **Migration from v1**: the first time a v2-aware CLI runs against an older flat `~/.flagify/config.json`, it migrates in place and writes a `.bak` alongside. Re-running does not re-migrate. Existing automation that wrote to the flat shape keeps working — the CLI projects the active profile as the flat view internally.
+
+File permissions: `0700` on `~/.flagify/`, `0600` on `config.json`. Writes are atomic (temp file + rename).
+
+### `flagify config`
+
+For global and profile-level settings:
 
 ```bash
-flagify config
+flagify config                       # pretty view of the active profile
 flagify config --format json
+flagify config set api-url https://api.flagify.dev
+flagify config set console-url https://console.flagify.dev
+flagify config get api-url
 ```
 
-Set a value:
+For per-repo scope (workspace / project / environment), prefer `flagify project set ...` so the change lands in the committable project file instead of the profile defaults.
 
-```bash
-flagify config set environment staging
-```
-
-Get a single value (useful for scripts):
-
-```bash
-flagify config get project
-```
-
-Valid keys: `api-url`, `console-url`, `workspace`, `project`, `environment`
+Valid `config set` keys: `api-url`, `console-url`, `workspace`, `project`, `environment` (the last three still write to the active profile's defaults — they are kept for muscle memory from v1).
 
 ## Shell completions
 
@@ -659,17 +811,20 @@ flagify completion fish > ~/.config/fish/completions/flagify.fish
 
 ## Global flags
 
-These flags are available on all commands:
+These flags are available on every command. Precedence for scope resolution: flag > env var > `.flagify/project.json` > binding > active profile's defaults > built-in defaults. IDs win over slugs at the same level.
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--workspace` | `-w` | Workspace ID |
-| `--project` | `-p` | Project key |
-| `--environment` | `-e` | Environment key (matches the environment slug in the API; e.g. `development`, `staging`, `production`, or any custom slug) |
+| `--profile` | | Profile to use (overrides `FLAGIFY_PROFILE`, bindings, and `current`) |
+| `--workspace-id` | | Workspace ULID (wins over `--workspace` when both are set) |
+| `--workspace` | `-w` | Workspace slug |
+| `--project-id` | | Project ULID (wins over `--project` when both are set) |
+| `--project` | `-p` | Project slug |
+| `--environment` | `-e` | Environment key (`development`, `staging`, `production`, or any custom slug) |
 | `--yes` | `-y` | Skip confirmation prompts |
 | `--help` | `-h` | Help for any command |
 
-> **Non-interactive mode**: The CLI automatically detects when it's not running in a terminal (e.g., piped output, CI, AI agents) and skips confirmation prompts. You can also use `-y` to explicitly skip them.
+> **Non-interactive mode**: The CLI automatically detects when it is not running in a terminal (piped output, CI, AI agents) and skips confirmation prompts. Pass `-y` to skip them explicitly.
 
 ## Development
 
