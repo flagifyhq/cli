@@ -40,7 +40,17 @@ var whoamiCmd = &cobra.Command{
 	},
 }
 
+// authWhoamiCmd mirrors whoamiCmd under `flagify auth whoami` so users who
+// think in "auth" namespaces can discover it there too.
+var authWhoamiCmd = &cobra.Command{
+	Use:   "whoami",
+	Short: "Show the currently authenticated user (alias for 'flagify whoami')",
+	RunE:  whoamiCmd.RunE,
+}
+
 func init() {
 	ui.AddFormatFlag(whoamiCmd)
+	ui.AddFormatFlag(authWhoamiCmd)
 	rootCmd.AddCommand(whoamiCmd)
+	authCmd.AddCommand(authWhoamiCmd)
 }

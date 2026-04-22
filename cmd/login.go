@@ -61,22 +61,50 @@ const (
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Authenticate with Flagify",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, _ := config.Load()
+	Short: "Authenticate with Flagify (alias for 'flagify auth login')",
+	RunE:  runLogin,
+}
 
-		if cfg.IsLoggedIn() {
-			fmt.Println(ui.Info("Already logged in. Use 'flagify logout' to sign out first."))
-			return nil
-		}
+var authLoginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Authenticate with Flagify (add or refresh a profile)",
+	RunE:  runLogin,
+}
 
-		classic, _ := cmd.Flags().GetBool("classic")
-		if classic {
-			return loginClassic(cfg)
-		}
+// runLogin materializes the target profile as current before entering the
+// browser/classic flows. This way existing helpers (loginBrowser, loginClassic,
+// maybeAutoSelect) can keep using config.Load/Save via the shim — the shim
+// always writes to the active profile, which is the one we just selected.
+func runLogin(cmd *cobra.Command, args []string) error {
+	profile, _ := cmd.Flags().GetString("profile")
+	classic, _ := cmd.Flags().GetBool("classic")
 
-		return loginBrowser(cfg)
-	},
+	store, err := config.LoadOrMigrate()
+	if err != nil {
+		return err
+	}
+
+	if profile == "" {
+		profile = store.Current
+	}
+	if profile == "" {
+		profile = config.DefaultProfile
+	}
+
+	if _, ok := store.Accounts[profile]; !ok {
+		store.Accounts[profile] = &config.Account{}
+	}
+	store.Current = profile
+	if err := config.SaveStore(store); err != nil {
+		return err
+	}
+
+	cfg, _ := config.Load()
+
+	if classic {
+		return loginClassic(cfg)
+	}
+	return loginBrowser(cfg)
 }
 
 func loginBrowser(cfg *config.Config) error {
@@ -226,24 +254,19 @@ func loginClassic(cfg *config.Config) error {
 
 var logoutCmd = &cobra.Command{
 	Use:   "logout",
-	Short: "Sign out of Flagify",
+	Short: "Sign out of the current Flagify profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, _ := config.Load()
-		cfg.AccessToken = ""
-		cfg.RefreshToken = ""
-		cfg.Token = ""
-
-		if err := config.Save(cfg); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println(ui.Success("Logged out."))
-		return nil
+		return runLogout("", false)
 	},
 }
 
 func init() {
-	loginCmd.Flags().Bool("classic", false, "Use email/password authentication")
+	for _, c := range []*cobra.Command{loginCmd, authLoginCmd} {
+		c.Flags().Bool("classic", false, "Use email/password authentication")
+		c.Flags().String("profile", "", "Profile to create or update (defaults to current, or 'default')")
+	}
+
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	authCmd.AddCommand(authLoginCmd)
 }
