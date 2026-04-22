@@ -2,8 +2,29 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 )
+
+// canonicalBindingPath normalizes repoPath so the same directory accessed via
+// different surface paths (symlinked /var/folders → /private/var/folders on
+// macOS, a relative "." vs an absolute path) always hashes to the same
+// binding key. If EvalSymlinks fails because the path does not exist yet,
+// the absolute form is used so binding is still deterministic.
+func canonicalBindingPath(repoPath string) (string, error) {
+	abs, err := filepath.Abs(repoPath)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return abs, nil
+		}
+		return "", err
+	}
+	return real, nil
+}
 
 // BindProfile records in the store that repoPath uses profile. The key is
 // always the absolute form of repoPath so lookups are stable regardless of
@@ -18,14 +39,14 @@ func BindProfile(s *Store, repoPath, profile string) error {
 	if profile == "" {
 		return fmt.Errorf("empty profile name")
 	}
-	abs, err := filepath.Abs(repoPath)
+	key, err := canonicalBindingPath(repoPath)
 	if err != nil {
 		return err
 	}
 	if s.Bindings == nil {
 		s.Bindings = map[string]Binding{}
 	}
-	s.Bindings[abs] = Binding{Profile: profile}
+	s.Bindings[key] = Binding{Profile: profile}
 	return nil
 }
 
@@ -34,25 +55,25 @@ func UnbindProfile(s *Store, repoPath string) error {
 	if s == nil || s.Bindings == nil {
 		return nil
 	}
-	abs, err := filepath.Abs(repoPath)
+	key, err := canonicalBindingPath(repoPath)
 	if err != nil {
 		return err
 	}
-	delete(s.Bindings, abs)
+	delete(s.Bindings, key)
 	return nil
 }
 
 // BindingFor returns the binding recorded for repoPath, or (Binding{}, false)
-// if none. Always compares against the absolute path.
+// if none. Always compares against the canonicalized path.
 func BindingFor(s *Store, repoPath string) (Binding, bool) {
 	if s == nil || s.Bindings == nil || repoPath == "" {
 		return Binding{}, false
 	}
-	abs, err := filepath.Abs(repoPath)
+	key, err := canonicalBindingPath(repoPath)
 	if err != nil {
 		return Binding{}, false
 	}
-	b, ok := s.Bindings[abs]
+	b, ok := s.Bindings[key]
 	return b, ok
 }
 

@@ -93,7 +93,38 @@ type ResolvedConfig struct {
 	APIUrl      string
 	ConsoleUrl  string
 	ProjectFile *ProjectFile
-	Sources     map[string]Source
+
+	// EnvAccessToken / EnvRefreshToken carry FLAGIFY_ACCESS_TOKEN and
+	// FLAGIFY_REFRESH_TOKEN when they were set. When non-empty, clients must
+	// use these for the request and MUST NOT persist refreshed tokens to the
+	// store — the user opted in to an ephemeral identity for this run only.
+	EnvAccessToken  string
+	EnvRefreshToken string
+
+	Sources map[string]Source
+}
+
+// ProjectIdentifier returns the best project handle to send to the API: the
+// ULID if present, otherwise the slug. Empty when neither resolved.
+func (r *ResolvedConfig) ProjectIdentifier() string {
+	if r == nil {
+		return ""
+	}
+	if r.ProjectID != "" {
+		return r.ProjectID
+	}
+	return r.Project
+}
+
+// WorkspaceIdentifier returns the best workspace handle to send to the API.
+func (r *ResolvedConfig) WorkspaceIdentifier() string {
+	if r == nil {
+		return ""
+	}
+	if r.WorkspaceID != "" {
+		return r.WorkspaceID
+	}
+	return r.Workspace
 }
 
 // HasToken reports whether the resolved account has an access token usable by
@@ -180,6 +211,10 @@ func Resolve(input ResolveInput) (*ResolvedConfig, error) {
 	consoleUrl, consoleSrc := resolveConsoleUrl(rc.Account)
 	rc.ConsoleUrl = consoleUrl
 	rc.Sources["consoleUrl"] = consoleSrc
+
+	// Ephemeral token overrides (env only — never written back).
+	rc.EnvAccessToken = input.Env.AccessToken
+	rc.EnvRefreshToken = input.Env.RefreshToken
 
 	// Strip sources for fields that ended up empty so callers can test presence
 	// without the map being littered with zero entries.

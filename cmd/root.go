@@ -18,8 +18,11 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("workspace", "w", "", "Workspace ID")
-	rootCmd.PersistentFlags().StringP("project", "p", "", "Project key")
+	rootCmd.PersistentFlags().String("profile", "", "Flagify profile to use (defaults to the active profile)")
+	rootCmd.PersistentFlags().StringP("workspace", "w", "", "Workspace slug")
+	rootCmd.PersistentFlags().String("workspace-id", "", "Workspace ULID (wins over --workspace when both are set)")
+	rootCmd.PersistentFlags().StringP("project", "p", "", "Project slug")
+	rootCmd.PersistentFlags().String("project-id", "", "Project ULID (wins over --project)")
 	rootCmd.PersistentFlags().StringP("environment", "e", "", "Environment key (matches the environment slug in the API; defaults to development|staging|production)")
 	rootCmd.PersistentFlags().BoolP("yes", "y", false, "Skip confirmation prompts")
 
