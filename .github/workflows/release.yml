@@ -8,6 +8,14 @@ on:
 permissions:
   contents: write
 
+# Never cancel a release in flight. GoReleaser and the npm publish job push
+# side effects (Homebrew tap commit, npm registry version) that cannot be
+# rolled back cleanly, so we queue rather than cancel. In practice two v*
+# tags rarely race, but this is the safe default.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest

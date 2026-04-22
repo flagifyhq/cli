@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel in-progress CI runs when a newer commit arrives on the same ref.
+# Grouping by workflow + ref keeps runs for different PRs (and for main)
+# independent, while successive pushes to the same PR or to main supersede
+# the still-running check. Main is spared cancellation so the most recent
+# post-merge verification always completes; PR pushes cancel freely.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
