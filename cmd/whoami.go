@@ -11,7 +11,11 @@ var whoamiCmd = &cobra.Command{
 	Use:   "whoami",
 	Short: "Show the currently authenticated user",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
@@ -22,7 +26,10 @@ var whoamiCmd = &cobra.Command{
 		}
 
 		if ui.IsJSON(cmd) {
-			return ui.PrintJSON(user)
+			return ui.PrintJSON(map[string]any{
+				"profile": rc.Profile,
+				"user":    user,
+			})
 		}
 
 		name := ""
@@ -30,10 +37,14 @@ var whoamiCmd = &cobra.Command{
 			name = *user.Name
 		}
 
+		ident := ui.Bold(user.Email)
 		if name != "" {
-			fmt.Println(ui.Success(fmt.Sprintf("%s %s", ui.Bold(name), ui.Dim("("+user.Email+")"))))
+			ident = fmt.Sprintf("%s %s", ui.Bold(name), ui.Dim("("+user.Email+")"))
+		}
+		if rc.Profile != "" {
+			fmt.Println(ui.Success(fmt.Sprintf("%s  %s", ident, ui.Dim("profile: "+rc.Profile))))
 		} else {
-			fmt.Println(ui.Success(ui.Bold(user.Email)))
+			fmt.Println(ui.Success(ident))
 		}
 
 		return nil

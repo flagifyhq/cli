@@ -16,38 +16,40 @@ var environmentsCmd = &cobra.Command{
 
 var environmentsPickCmd = &cobra.Command{
 	Use:   "pick",
-	Short: "Interactively select a default environment",
+	Short: "Interactively select a default environment for the active profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		if rc.Profile == "" {
+			return fmt.Errorf("no active profile — run 'flagify login' first")
+		}
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return err
-		}
+		projectID := rc.ProjectIdentifier()
+		workspaceID := rc.WorkspaceIdentifier()
+		workspaceSlug := rc.Workspace
+		projectSlug := rc.Project
 
-		projectID := resolveFlag(cmd, "project", cfg.ProjectID)
 		if projectID == "" {
-			workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
 			if workspaceID == "" {
 				ws, err := picker.PickWorkspace(client)
 				if err != nil {
 					return err
 				}
 				workspaceID = ws.ID
-				cfg.Workspace = ws.Slug
-				cfg.WorkspaceID = ws.ID
+				workspaceSlug = ws.Slug
 			}
-
 			proj, err := picker.PickProject(client, workspaceID)
 			if err != nil {
 				return err
 			}
 			projectID = proj.ID
-			cfg.Project = proj.Slug
-			cfg.ProjectID = proj.ID
+			projectSlug = proj.Slug
 		}
 
 		env, err := picker.PickEnvironment(client, projectID)
@@ -55,8 +57,28 @@ var environmentsPickCmd = &cobra.Command{
 			return err
 		}
 
-		cfg.Environment = env.Key
-		if err := config.Save(cfg); err != nil {
+		store, err := config.LoadStore()
+		if err != nil {
+			return err
+		}
+		acc, ok := store.Accounts[rc.Profile]
+		if !ok {
+			return fmt.Errorf("profile %q not found in local store", rc.Profile)
+		}
+		if workspaceSlug != "" {
+			acc.Defaults.Workspace = workspaceSlug
+		}
+		if workspaceID != "" {
+			acc.Defaults.WorkspaceID = workspaceID
+		}
+		if projectSlug != "" {
+			acc.Defaults.Project = projectSlug
+		}
+		if projectID != "" {
+			acc.Defaults.ProjectID = projectID
+		}
+		acc.Defaults.Environment = env.Key
+		if err := config.SaveStore(store); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 

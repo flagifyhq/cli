@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -18,23 +17,23 @@ var segmentsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all segments in a project",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		segments, err := client.ListSegments(project)
 		if err != nil {
-			return fmt.Errorf("failed to list segments: %w", err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -67,15 +66,15 @@ var segmentsCreateCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		matchType, _ := cmd.Flags().GetString("match")
 		rulesRaw, _ := cmd.Flags().GetString("rules")
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
 		yes, _ := cmd.Flags().GetBool("yes")
@@ -88,7 +87,7 @@ var segmentsCreateCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
@@ -108,7 +107,7 @@ var segmentsCreateCmd = &cobra.Command{
 
 		seg, err := client.CreateSegment(project, body)
 		if err != nil {
-			return fmt.Errorf("failed to create segment: %w", err)
+			return handleAccessError(err, rc)
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Created segment %s %s with %d rules",
@@ -139,7 +138,7 @@ var segmentsDeleteCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		client, err := getClient(cmd)
 		if err != nil {
 			return err
 		}

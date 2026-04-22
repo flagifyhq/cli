@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/flagifyhq/cli/internal/api"
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/templates"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
@@ -29,7 +27,7 @@ var aiSetupCmd = &cobra.Command{
 
 		var flagsContext string
 		if includeFlags {
-			ctx, err := fetchFlagsContext()
+			ctx, err := fetchFlagsContext(cmd)
 			if err != nil {
 				fmt.Println(ui.Warning(fmt.Sprintf("Could not fetch flags: %s. Generating without flag list.", err)))
 			} else {
@@ -74,29 +72,25 @@ func isValidTool(tool string) bool {
 	return false
 }
 
-func fetchFlagsContext() (string, error) {
-	cfg, err := config.Load()
+func fetchFlagsContext(cmd *cobra.Command) (string, error) {
+	rc, err := resolveContext(cmd)
 	if err != nil {
 		return "", err
 	}
 
-	if !cfg.IsLoggedIn() {
-		return "", fmt.Errorf("not logged in. Run %s first", ui.Bold("flagify login"))
-	}
-
-	projectID := cfg.ProjectID
+	projectID := rc.ProjectIdentifier()
 	if projectID == "" {
 		return "", fmt.Errorf("no project configured. Run %s first", ui.Bold("flagify projects pick"))
 	}
 
-	client := api.NewClient(cfg.GetToken())
-	if cfg.APIUrl != "" {
-		client.SetBaseURL(cfg.APIUrl)
+	client, err := getClientFromResolved(rc)
+	if err != nil {
+		return "", err
 	}
 
 	flags, err := client.ListFlags(projectID)
 	if err != nil {
-		return "", handleAccessError(err)
+		return "", handleAccessError(err, rc)
 	}
 	if len(flags) == 0 {
 		return "", nil

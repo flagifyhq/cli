@@ -18,7 +18,7 @@ var workspacesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List your workspaces",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		client, err := getClient(cmd)
 		if err != nil {
 			return err
 		}
@@ -48,9 +48,16 @@ var workspacesListCmd = &cobra.Command{
 
 var workspacesPickCmd = &cobra.Command{
 	Use:   "pick",
-	Short: "Interactively select a default workspace",
+	Short: "Interactively select a default workspace for the active profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		if rc.Profile == "" {
+			return fmt.Errorf("no active profile — run 'flagify login' first")
+		}
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
@@ -60,14 +67,17 @@ var workspacesPickCmd = &cobra.Command{
 			return err
 		}
 
-		cfg, err := config.Load()
+		store, err := config.LoadStore()
 		if err != nil {
 			return err
 		}
-
-		cfg.Workspace = ws.Slug
-		cfg.WorkspaceID = ws.ID
-		if err := config.Save(cfg); err != nil {
+		acc, ok := store.Accounts[rc.Profile]
+		if !ok {
+			return fmt.Errorf("profile %q not found in local store", rc.Profile)
+		}
+		acc.Defaults.Workspace = ws.Slug
+		acc.Defaults.WorkspaceID = ws.ID
+		if err := config.SaveStore(store); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
