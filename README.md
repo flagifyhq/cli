@@ -90,17 +90,14 @@ flag flags list -p proj_xxx
 
 ## Authentication
 
-Sign in via the browser (default) or with email/password (`--classic`). Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
+Sign in via the browser. Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
 
 ```bash
 flagify auth login
 flagify auth login --profile work       # add or refresh a named profile
-flagify auth login --classic            # fall back to email/password
 ```
 
 Re-running `flagify auth login` does not error when another profile is already signed in — pass `--profile` to target a specific one. The default profile is called `default` and is created on first login.
-
-> The top-level `flagify login` / `flagify logout` still work as hidden aliases but print a deprecation notice. They will be removed in v2. Use `flagify auth login` / `flagify auth logout` going forward.
 
 ### `flagify whoami`
 

@@ -36,7 +36,7 @@ var initCmd = &cobra.Command{
 		}
 
 		if pfd.WorkspaceID == "" && pfd.Workspace == "" {
-			return fmt.Errorf("workspace is required: pass --workspace-id or --workspace, or run 'flagify login' so your profile has defaults")
+			return fmt.Errorf("workspace is required: pass --workspace-id or --workspace, or run 'flagify auth login' so your profile has defaults")
 		}
 		if pfd.ProjectID == "" && pfd.Project == "" {
 			return fmt.Errorf("project is required: pass --project-id or --project")

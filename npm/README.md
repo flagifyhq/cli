@@ -53,7 +53,7 @@ flagify flags toggle my-flag -p <project-id>
 
 | Command | Description |
 |---------|-------------|
-| `flagify auth login` | Sign in (browser flow by default; `--classic` for email/password; `--profile <name>` to add a second identity without signing out of the first) |
+| `flagify auth login` | Sign in with the browser flow (`--profile <name>` to add a second identity without signing out of the first) |
 | `flagify auth logout` | Sign out of the active profile (`--profile <name>` or `--all`) |
 | `flagify auth list` | List signed-in profiles (`--format json`) |
 | `flagify auth switch <name>` | Set the active profile |

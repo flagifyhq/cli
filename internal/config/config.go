@@ -61,7 +61,7 @@ func Load() (*Config, error) {
 
 // Save writes the given Config back to the active profile. If the store has no
 // current profile yet (first login), one named DefaultProfile is created and
-// marked as current, preserving the single-account muscle memory of `flagify login`.
+// marked as current, preserving single-account auth behavior for `flagify auth login`.
 func Save(cfg *Config) error {
 	if cfg == nil {
 		return nil

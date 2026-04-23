@@ -26,6 +26,7 @@ func resetAuthFlags(t *testing.T) {
 	t.Cleanup(func() {
 		authLogoutCmd.Flags().Set("profile", "")
 		authLogoutCmd.Flags().Set("all", "false")
+		authLoginCmd.Flags().Set("profile", "")
 		rootCmd.PersistentFlags().Set("yes", "false")
 	})
 }
@@ -318,57 +319,38 @@ func TestAuthRename_TargetExistsFails(t *testing.T) {
 	}
 }
 
-// --- login guard removed --------------------------------------------------
+// --- auth login -----------------------------------------------------------
 
-func TestLogin_DoesNotBlockWhenAnotherProfileIsLoggedIn(t *testing.T) {
-	// Historic v1 behavior blocked `flagify login` whenever a token existed. In v2
+func TestAuthLogin_DoesNotBlockWhenAnotherProfileIsLoggedIn(t *testing.T) {
+	// Historic v1 behavior blocked login whenever a token existed. In v2
 	// that check must be gone — the user can add a second profile freely. We verify
 	// by checking the parse-level flags instead of running the full browser flow.
 	resetAuthFlags(t)
 
-	if loginCmd.RunE == nil {
-		t.Fatal("loginCmd.RunE must not be nil")
-	}
 	if authLoginCmd.RunE == nil {
 		t.Fatal("authLoginCmd.RunE must not be nil")
-	}
-	if loginCmd.Flag("profile") == nil {
-		t.Fatal("loginCmd must accept --profile")
 	}
 	if authLoginCmd.Flag("profile") == nil {
 		t.Fatal("authLoginCmd must accept --profile")
 	}
 }
 
-// --- deprecation of top-level login/logout -------------------------------
+// --- v2 removes top-level login/logout -----------------------------------
 
-func TestTopLevelLoginLogout_AreHidden(t *testing.T) {
-	if !loginCmd.Hidden {
-		t.Fatal("loginCmd must be Hidden so help no longer advertises it")
-	}
-	if !logoutCmd.Hidden {
-		t.Fatal("logoutCmd must be Hidden so help no longer advertises it")
-	}
+func TestTopLevelLoginLogout_AreRemoved(t *testing.T) {
 	if authLoginCmd.Hidden {
 		t.Fatal("authLoginCmd must remain visible — it is the canonical command")
 	}
 	if authLogoutCmd.Hidden {
 		t.Fatal("authLogoutCmd must remain visible — it is the canonical command")
 	}
-}
 
-func TestTopLevelLogout_EmitsDeprecationWarning(t *testing.T) {
-	resetAuthFlags(t)
-	seedStore(t, &config.Store{Version: config.StoreVersion})
-
-	_, stderr, err := runRootCapture(t, "logout")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stderr, "flagify logout` is deprecated") {
-		t.Fatalf("expected deprecation warning on stderr, got: %q", stderr)
-	}
-	if !strings.Contains(stderr, "flagify auth logout") {
-		t.Fatalf("warning must point at canonical command, got: %q", stderr)
+	for _, name := range []string{"login", "logout"} {
+		if rootCmd.CommandPath() == name {
+			t.Fatalf("unexpected root command path %q", name)
+		}
+		if cmd, _, err := rootCmd.Find([]string{name}); err == nil && cmd != rootCmd {
+			t.Fatalf("top-level %q command must be removed in v2", name)
+		}
 	}
 }

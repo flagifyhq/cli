@@ -178,8 +178,8 @@ var authRenameCmd = &cobra.Command{
 	},
 }
 
-// runLogout is the shared body for `flagify logout` and `flagify auth logout`.
-// profile==""/all==false means "the current profile". all==true wins.
+// runLogout signs out the selected profile. profile==""/all==false means "the
+// current profile". all==true wins.
 func runLogout(profile string, all bool) error {
 	store, err := config.LoadOrMigrate()
 	if err != nil {

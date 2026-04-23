@@ -83,7 +83,7 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 	}
 
 	if rc.Account == nil || rc.Account.AccessToken == "" {
-		return nil, fmt.Errorf("not logged in. Run 'flagify login' first")
+		return nil, fmt.Errorf("not logged in. Run 'flagify auth login' first")
 	}
 
 	client := api.NewClient(rc.Account.AccessToken)

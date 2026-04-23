@@ -2,6 +2,17 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.0.0](https://github.com/flagifyhq/cli/releases/tag/v2.0.0) — 2026-04-23
+
+### Breaking changes
+
+- **Top-level `flagify login` and `flagify logout` have been removed.** Use `flagify auth login` and `flagify auth logout` instead. The auth namespace is now the single home for profile-aware sign-in, sign-out, profile switching, removal, and rename flows.
+- **Classic email/password login has been removed from the CLI.** `flagify auth login` now uses the browser authorization flow. This keeps credential entry on the Flagify console domain and avoids handling raw passwords in the terminal.
+
+### Features
+
+- **Multi-account auth profiles are now the default auth model.** `flagify auth login --profile <name>` adds or refreshes a profile without logging out of another account, and `flagify auth list`, `switch`, `remove`, `rename`, and `whoami` manage local identities explicitly.
+
 ## [v1.7.0](https://github.com/flagifyhq/cli/releases/tag/v1.7.0) — 2026-04-20
 
 ### Features

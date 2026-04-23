@@ -55,7 +55,7 @@ var workspacesPickCmd = &cobra.Command{
 			return err
 		}
 		if rc.Profile == "" {
-			return fmt.Errorf("no active profile — run 'flagify login' first")
+			return fmt.Errorf("no active profile — run 'flagify auth login' first")
 		}
 		client, err := getClientFromResolved(rc)
 		if err != nil {
