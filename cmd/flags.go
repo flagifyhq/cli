@@ -7,7 +7,6 @@ import (
 	"unicode"
 
 	"github.com/flagifyhq/cli/internal/api"
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/picker"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
@@ -32,55 +31,6 @@ func toKebabCase(s string) string {
 	return strings.Trim(string(result), "-")
 }
 
-func resolveFlag(cmd *cobra.Command, name string, configValue string) string {
-	val, _ := cmd.Flags().GetString(name)
-	if val != "" {
-		return val
-	}
-	return configValue
-}
-
-// handleAccessError checks if an API error is a 403 Forbidden and clears
-// workspace/project/environment from config since the user lost access.
-func handleAccessError(err error) error {
-	if apiErr, ok := err.(*api.APIError); ok && apiErr.StatusCode == 403 {
-		cfg, loadErr := config.Load()
-		if loadErr == nil {
-			cfg.Workspace = ""
-			cfg.WorkspaceID = ""
-			cfg.Project = ""
-			cfg.ProjectID = ""
-			cfg.Environment = ""
-			config.Save(cfg)
-		}
-		return fmt.Errorf("access denied — you are not a member of this workspace. Config cleared, run 'flagify projects pick'")
-	}
-	return err
-}
-
-func getClient() (*api.Client, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-	if !cfg.IsLoggedIn() {
-		return nil, fmt.Errorf("not logged in. Run 'flagify login' first")
-	}
-	client := api.NewClient(cfg.GetToken())
-	if cfg.APIUrl != "" {
-		client.SetBaseURL(cfg.APIUrl)
-	}
-	if cfg.RefreshToken != "" {
-		client.SetRefreshToken(cfg.RefreshToken)
-		client.OnTokenRefresh = func(accessToken, refreshToken string) {
-			cfg.AccessToken = accessToken
-			cfg.RefreshToken = refreshToken
-			config.Save(cfg)
-		}
-	}
-	return client, nil
-}
-
 var flagsCmd = &cobra.Command{
 	Use:   "flags",
 	Short: "Manage feature flags",
@@ -90,23 +40,23 @@ var flagsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all flags in a project",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		flags, err := client.ListFlags(project)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if len(flags) == 0 {
@@ -160,23 +110,23 @@ var flagsCreateCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		projectName := cfg.Project
-		if projectName == "" {
-			projectName = project
+		project := rc.ProjectIdentifier()
+		if project == "" {
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
+		}
+		projectLabel := rc.Project
+		if projectLabel == "" {
+			projectLabel = project
 		}
 		flagType, _ := cmd.Flags().GetString("type")
 		description, _ := cmd.Flags().GetString("description")
-		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
-		}
 
 		yes, _ := cmd.Flags().GetBool("yes")
-		confirmed, err := ui.Confirm(fmt.Sprintf("Create flag %s in project %s?", ui.Bold(key), ui.Cyan(projectName)), yes)
+		confirmed, err := ui.Confirm(fmt.Sprintf("Create flag %s in project %s?", ui.Bold(key), ui.Cyan(projectLabel)), yes)
 		if err != nil {
 			return err
 		}
@@ -185,7 +135,7 @@ var flagsCreateCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
@@ -212,7 +162,7 @@ var flagsCreateCmd = &cobra.Command{
 
 		flag, err := client.CreateFlag(project, body)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		fmt.Println(ui.Success(fmt.Sprintf("Created flag %s %s with %d environments",
@@ -224,30 +174,30 @@ var flagsCreateCmd = &cobra.Command{
 var flagsToggleCmd = &cobra.Command{
 	Use:   "toggle [key]",
 	Short: "Toggle a boolean flag on/off",
-	Args: cobra.MaximumNArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		all, _ := cmd.Flags().GetBool("all")
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		env := rc.Environment
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if !all && env == "" {
 			env = "development"
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		flags, err := client.ListFlags(project)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		var targetFlag *api.Flag
@@ -277,7 +227,6 @@ var flagsToggleCmd = &cobra.Command{
 				return fmt.Errorf("no environments found for flag %q", key)
 			}
 
-			// Determine new state from first environment
 			newState := !targetFlag.Environments[0].Enabled
 			newStateStr := "OFF"
 			if newState {
@@ -303,7 +252,7 @@ var flagsToggleCmd = &cobra.Command{
 
 			for _, fe := range targetFlag.Environments {
 				if err := client.ToggleFlagByKey(project, key, fe.EnvironmentKey, newState); err != nil {
-					return handleAccessError(err)
+					return handleAccessError(err, rc)
 				}
 				state := ui.Red("OFF")
 				if newState {
@@ -342,7 +291,7 @@ var flagsToggleCmd = &cobra.Command{
 		}
 
 		if err := client.ToggleFlagByKey(project, key, env, newState); err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		state := ui.Red("OFF")
@@ -360,23 +309,23 @@ var flagsGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		flags, err := client.ListFlags(project)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		var flag *api.Flag
@@ -427,23 +376,23 @@ var flagsHealthCmd = &cobra.Command{
   • rule_value_matches_default  — targeting rule valueOverride equals the flag's
                                   defaultValue, making the rule a no-op.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
+		project := rc.ProjectIdentifier()
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		issues, err := client.GetFlagHealth(project)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {

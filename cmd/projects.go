@@ -18,23 +18,23 @@ var projectsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List projects in a workspace",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
+		workspaceID := rc.WorkspaceIdentifier()
 		if workspaceID == "" {
 			return fmt.Errorf("--workspace is required (or run 'flagify workspaces pick')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		projects, err := client.ListProjects(workspaceID)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -65,14 +65,18 @@ var projectsGetCmd = &cobra.Command{
 		return cobra.ExactArgs(1)(cmd, args)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		project, err := client.GetProject(args[0])
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -118,20 +122,30 @@ var projectsDeleteCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		if err := client.DeleteProject(projID); err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
-		cfg, err := config.Load()
-		if err == nil && cfg.ProjectID == projID {
-			cfg.Project = ""
-			cfg.ProjectID = ""
-			_ = config.Save(cfg)
+		// If the deleted project was the active profile's default, scrub it so
+		// future commands don't send a dangling ID to the API.
+		if rc.Account != nil && rc.Account.Defaults.ProjectID == projID {
+			store, err := config.LoadStore()
+			if err == nil && rc.Profile != "" {
+				if acc, ok := store.Accounts[rc.Profile]; ok {
+					acc.Defaults.Project = ""
+					acc.Defaults.ProjectID = ""
+					_ = config.SaveStore(store)
+				}
+			}
 		}
 
 		fmt.Println(ui.Success("Deleted project " + projID))
@@ -141,27 +155,30 @@ var projectsDeleteCmd = &cobra.Command{
 
 var projectsPickCmd = &cobra.Command{
 	Use:   "pick",
-	Short: "Interactively select a default project",
+	Short: "Interactively select a default project for the active profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := getClient()
+		rc, err := resolveContext(cmd)
+		if err != nil {
+			return err
+		}
+		if rc.Profile == "" {
+			return fmt.Errorf("no active profile — run 'flagify auth login' first")
+		}
+
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return err
-		}
-
-		workspaceID := resolveFlag(cmd, "workspace", cfg.WorkspaceID)
+		workspaceID := rc.WorkspaceIdentifier()
+		workspaceSlug := rc.Workspace
 		if workspaceID == "" {
 			ws, err := picker.PickWorkspace(client)
 			if err != nil {
 				return err
 			}
 			workspaceID = ws.ID
-			cfg.Workspace = ws.Slug
-			cfg.WorkspaceID = ws.ID
+			workspaceSlug = ws.Slug
 		}
 
 		project, err := picker.PickProject(client, workspaceID)
@@ -169,9 +186,20 @@ var projectsPickCmd = &cobra.Command{
 			return err
 		}
 
-		cfg.Project = project.Slug
-		cfg.ProjectID = project.ID
-		if err := config.Save(cfg); err != nil {
+		// Persist on the resolved profile — never on "current" unconditionally.
+		store, err := config.LoadStore()
+		if err != nil {
+			return err
+		}
+		acc, ok := store.Accounts[rc.Profile]
+		if !ok {
+			return fmt.Errorf("profile %q not found in local store", rc.Profile)
+		}
+		acc.Defaults.Workspace = workspaceSlug
+		acc.Defaults.WorkspaceID = workspaceID
+		acc.Defaults.Project = project.Slug
+		acc.Defaults.ProjectID = project.ID
+		if err := config.SaveStore(store); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 

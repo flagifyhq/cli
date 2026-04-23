@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/flagifyhq/cli/internal/api"
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -19,14 +18,14 @@ var keysGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate API key pair for an environment",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if env == "" {
 			return fmt.Errorf("--environment is required (or run 'flagify environments pick')")
@@ -42,14 +41,14 @@ var keysGenerateCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		keys, err := client.GenerateKeysByEnv(project, env)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -74,27 +73,27 @@ var keysListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List API keys for an environment",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if env == "" {
 			return fmt.Errorf("--environment is required (or run 'flagify environments pick')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		keys, err := client.ListKeysByEnv(project, env)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -128,14 +127,14 @@ or use --id to target a specific key by ULID when prefixes collide. Use --all to
 every active key in the environment.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if env == "" {
 			return fmt.Errorf("--environment is required (or run 'flagify environments pick')")
@@ -165,7 +164,7 @@ every active key in the environment.`,
 			return fmt.Errorf("--all, --id, and a positional prefix are mutually exclusive")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
@@ -180,7 +179,7 @@ every active key in the environment.`,
 				return nil
 			}
 			if err := client.RevokeKeysByEnv(project, env); err != nil {
-				return handleAccessError(err)
+				return handleAccessError(err, rc)
 			}
 			fmt.Println(ui.Success(fmt.Sprintf("Revoked all API keys for %s", ui.Cyan(env))))
 			return nil
@@ -196,10 +195,8 @@ every active key in the environment.`,
 			prefix := strings.TrimSpace(args[0])
 			keys, err := client.ListKeysByEnv(project, env)
 			if err != nil {
-				return handleAccessError(err)
+				return handleAccessError(err, rc)
 			}
-			// The API returns the full set (no pagination: see
-			// api/internal/domain/apikey/repository.go ListByEnvironment).
 			for i := range keys {
 				if keys[i].Prefix == prefix && keys[i].RevokedAt == nil {
 					target = &keys[i]
@@ -227,7 +224,7 @@ every active key in the environment.`,
 		}
 
 		if err := client.RevokeKeyByEnv(project, env, target.ID); err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 		fmt.Println(ui.Success(fmt.Sprintf("Revoked API key %s in %s", label, ui.Cyan(env))))
 		return nil

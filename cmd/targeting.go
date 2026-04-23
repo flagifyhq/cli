@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -25,27 +24,27 @@ var targetingListCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flagKey := args[0]
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if env == "" {
 			env = "development"
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		rules, err := client.GetTargetingRulesByKey(project, flagKey, env)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {
@@ -112,15 +111,15 @@ var targetingSetCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flagKey := args[0]
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		project := resolveFlag(cmd, "project", cfg.ProjectID)
-		env := resolveFlag(cmd, "environment", cfg.Environment)
+		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		rulesRaw, _ := cmd.Flags().GetString("rules")
 		if project == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 		if env == "" {
 			env = "development"
@@ -148,14 +147,14 @@ var targetingSetCmd = &cobra.Command{
 			return nil
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		result, err := client.SetTargetingRulesByKey(project, flagKey, env, map[string]any{"rules": rules})
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		if ui.IsJSON(cmd) {

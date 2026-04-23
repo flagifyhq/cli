@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/flagifyhq/cli/internal/codegen"
-	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -39,28 +38,28 @@ Exactly one of --typescript or --go must be provided.`,
 			return fmt.Errorf("exactly one of --typescript or --go is required")
 		}
 
-		cfg, err := config.Load()
+		rc, err := resolveContext(cmd)
 		if err != nil {
 			return err
 		}
-		projectID := resolveFlag(cmd, "project", cfg.ProjectID)
+		projectID := rc.ProjectIdentifier()
 		if projectID == "" {
-			return fmt.Errorf("--project is required (or run 'flagify projects pick')")
+			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
 		}
 
-		client, err := getClient()
+		client, err := getClientFromResolved(rc)
 		if err != nil {
 			return err
 		}
 
 		flags, err := client.ListFlags(projectID)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		project, err := client.GetProject(projectID)
 		if err != nil {
-			return handleAccessError(err)
+			return handleAccessError(err, rc)
 		}
 
 		var (

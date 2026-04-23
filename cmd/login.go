@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net"
@@ -17,7 +16,6 @@ import (
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 // maybeAutoSelect auto-selects workspace (if only one) and then picks a project.
@@ -55,28 +53,46 @@ func maybeAutoSelect(cfg *config.Config) {
 }
 
 const (
-	defaultConsoleURL      = "https://console.flagify.dev"
-	localConsoleURL        = "https://local-console.flagify.dev"
+	defaultConsoleURL = "https://console.flagify.dev"
+	localConsoleURL   = "https://local-console.flagify.dev"
 )
 
-var loginCmd = &cobra.Command{
+var authLoginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Authenticate with Flagify",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, _ := config.Load()
+	Short: "Authenticate with Flagify (add or refresh a profile)",
+	RunE:  runLogin,
+}
 
-		if cfg.IsLoggedIn() {
-			fmt.Println(ui.Info("Already logged in. Use 'flagify logout' to sign out first."))
-			return nil
-		}
+// runLogin materializes the target profile as current before entering the
+// browser flow. This way existing helpers (loginBrowser, maybeAutoSelect) can
+// keep using config.Load/Save via the shim — the shim always writes to the
+// active profile, which is the one we just selected.
+func runLogin(cmd *cobra.Command, args []string) error {
+	profile, _ := cmd.Flags().GetString("profile")
 
-		classic, _ := cmd.Flags().GetBool("classic")
-		if classic {
-			return loginClassic(cfg)
-		}
+	store, err := config.LoadOrMigrate()
+	if err != nil {
+		return err
+	}
 
-		return loginBrowser(cfg)
-	},
+	if profile == "" {
+		profile = store.Current
+	}
+	if profile == "" {
+		profile = config.DefaultProfile
+	}
+
+	if _, ok := store.Accounts[profile]; !ok {
+		store.Accounts[profile] = &config.Account{}
+	}
+	store.Current = profile
+	if err := config.SaveStore(store); err != nil {
+		return err
+	}
+
+	cfg, _ := config.Load()
+
+	return loginBrowser(cfg)
 }
 
 func loginBrowser(cfg *config.Config) error {
@@ -168,82 +184,12 @@ func loginBrowser(cfg *config.Config) error {
 
 	case <-ctx.Done():
 		server.Shutdown(context.Background())
-		return fmt.Errorf("authentication timed out. Try again or use 'flagify login --classic'")
+		return fmt.Errorf("authentication timed out")
 	}
-}
-
-func loginClassic(cfg *config.Config) error {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Printf("%s %s ", ui.Arrow(), ui.Bold("Email:"))
-	email, _ := reader.ReadString('\n')
-	email = strings.TrimSpace(email)
-
-	fmt.Printf("%s %s ", ui.Arrow(), ui.Bold("Password:"))
-	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return fmt.Errorf("failed to read password: %w", err)
-	}
-	fmt.Println()
-	password := string(passwordBytes)
-
-	client := api.NewClient("")
-	if cfg.APIUrl != "" {
-		client.SetBaseURL(cfg.APIUrl)
-	}
-
-	hostname, _ := os.Hostname()
-	deviceID := "cli-" + hostname
-
-	result, err := client.Login(email, password, deviceID)
-	if err != nil {
-		return fmt.Errorf("login failed: %w", err)
-	}
-
-	cfg.AccessToken = result.Tokens.AccessToken
-	cfg.RefreshToken = result.Tokens.RefreshToken
-	cfg.Token = ""
-	cfg.Workspace = ""
-	cfg.Project = ""
-	cfg.Environment = ""
-
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("failed to save credentials: %w", err)
-	}
-
-	name := ""
-	if n, ok := result.User["name"].(string); ok {
-		name = n
-	}
-	if name != "" {
-		fmt.Println(ui.Success(fmt.Sprintf("Logged in as %s %s", ui.Bold(name), ui.Dim("("+email+")"))))
-	} else {
-		fmt.Println(ui.Success(fmt.Sprintf("Logged in as %s", ui.Bold(email))))
-	}
-	maybeAutoSelect(cfg)
-	return nil
-}
-
-var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Sign out of Flagify",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, _ := config.Load()
-		cfg.AccessToken = ""
-		cfg.RefreshToken = ""
-		cfg.Token = ""
-
-		if err := config.Save(cfg); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println(ui.Success("Logged out."))
-		return nil
-	},
 }
 
 func init() {
-	loginCmd.Flags().Bool("classic", false, "Use email/password authentication")
-	rootCmd.AddCommand(loginCmd)
-	rootCmd.AddCommand(logoutCmd)
+	authLoginCmd.Flags().String("profile", "", "Profile to create or update (defaults to current, or 'default')")
+
+	authCmd.AddCommand(authLoginCmd)
 }
