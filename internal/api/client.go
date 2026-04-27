@@ -467,3 +467,59 @@ func (c *Client) GetFlagHealth(projectID string) ([]HealthIssue, error) {
 	err := c.Get("/v1/projects/"+projectID+"/overview/health", &result)
 	return result, err
 }
+
+// Webhooks
+
+type Webhook struct {
+	ID         string     `json:"id"`
+	ProjectID  string     `json:"projectId"`
+	Name       string     `json:"name"`
+	URL        string     `json:"url"`
+	// Returned only on Create — subsequent reads omit the field.
+	Secret     string     `json:"secret,omitempty"`
+	Events     []string   `json:"events"`
+	Active     bool       `json:"active"`
+	DisabledAt *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+type WebhookDelivery struct {
+	ID           string     `json:"id"`
+	WebhookID    string     `json:"webhookId"`
+	EventAction  string     `json:"eventAction"`
+	Status       string     `json:"status"`
+	Attempt      int        `json:"attempt"`
+	ResponseCode *int       `json:"responseCode,omitempty"`
+	Error        *string    `json:"error,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	DeliveredAt  *time.Time `json:"deliveredAt,omitempty"`
+}
+
+func (c *Client) ListWebhooks(projectID string) ([]Webhook, error) {
+	var result []Webhook
+	err := c.Get("/v1/projects/"+projectID+"/webhooks", &result)
+	return result, err
+}
+
+func (c *Client) CreateWebhook(projectID string, body map[string]any) (*Webhook, error) {
+	var result Webhook
+	err := c.Post("/v1/projects/"+projectID+"/webhooks", body, &result)
+	return &result, err
+}
+
+func (c *Client) GetWebhook(projectID, webhookID string) (*Webhook, error) {
+	var result Webhook
+	err := c.Get("/v1/projects/"+projectID+"/webhooks/"+webhookID, &result)
+	return &result, err
+}
+
+func (c *Client) DeleteWebhook(projectID, webhookID string) error {
+	return c.Delete("/v1/projects/" + projectID + "/webhooks/" + webhookID)
+}
+
+func (c *Client) ListWebhookDeliveries(projectID, webhookID string) ([]WebhookDelivery, error) {
+	var result []WebhookDelivery
+	err := c.Get("/v1/projects/"+projectID+"/webhooks/"+webhookID+"/deliveries", &result)
+	return result, err
+}

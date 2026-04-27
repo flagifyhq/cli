@@ -99,6 +99,8 @@ flagify auth login --profile work       # add or refresh a named profile
 
 Re-running `flagify auth login` does not error when another profile is already signed in — pass `--profile` to target a specific one. The default profile is called `default` and is created on first login.
 
+If you log into a profile from a directory that already has a `.flagify/project.json`, and the committed `preferredProfile` does not match the profile you just authenticated, the CLI prompts to rewrite the pin to the newly logged-in profile. Skipped outside a TTY so CI never mutates committed files silently.
+
 ### `flagify whoami`
 
 Show the currently resolved user and which profile the invocation is using.
@@ -565,6 +567,78 @@ Delete a segment by ID. Asks for confirmation unless `--yes` is passed.
 ```bash
 flagify segments delete seg_xxx
 ```
+
+---
+
+### `flagify webhooks list`
+
+List webhooks subscribed to events in the current project.
+
+```bash
+flagify webhooks list
+flagify webhooks list -p proj_xxx --format json
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project ID (falls back to config default) |
+| `--format` |  | Output format (`table`, `json`) |
+
+---
+
+### `flagify webhooks create`
+
+Create a webhook subscribed to one or more flag/targeting events. The signing secret is printed **exactly once** — save it on the receiver (e.g. `FLAGIFY_WEBHOOK_SECRET=...`); Flagify can not retrieve it later. If you lose it, delete and recreate the webhook.
+
+```bash
+flagify webhooks create \
+  --name "Slack #releases" \
+  --url https://hooks.slack.com/services/T00/B00/xxx \
+  --events flag.created,flag.toggled,flag.deleted
+```
+
+Supported events: `flag.created`, `flag.updated`, `flag.toggled`, `flag.deleted`, `targeting_rule.created`, `targeting_rule.updated`, `targeting_rule.deleted`. Pass `--events ""` (or omit) to receive every supported event.
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Display name (required) |
+| `--url` | Receiver URL, must be `https://` for production (required) |
+| `--events` | Comma-separated event list; empty = all events |
+
+---
+
+### `flagify webhooks get`
+
+Show one webhook's URL, events, and status.
+
+```bash
+flagify webhooks get wh_01...
+```
+
+The secret is **never** shown by `get` or `list` — it only appears in the response of `create`.
+
+---
+
+### `flagify webhooks delete`
+
+Delete a webhook by ID. Asks for confirmation unless `--yes` is passed.
+
+```bash
+flagify webhooks delete wh_01... --yes
+```
+
+---
+
+### `flagify webhooks deliveries`
+
+Recent delivery attempts for a webhook (newest first). Useful for debugging when a subscriber is failing — each row shows the HTTP code, attempt number, and status.
+
+```bash
+flagify webhooks deliveries wh_01...
+flagify webhooks deliveries wh_01... --format json
+```
+
+The dispatcher retries failed deliveries up to 3 times (0s, 5s, 30s). Every attempt — succeeded or failed — is recorded as its own row.
 
 ---
 
