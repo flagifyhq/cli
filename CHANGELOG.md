@@ -2,6 +2,25 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.1.0](https://github.com/flagifyhq/cli/releases/tag/v2.1.0) — 2026-04-27
+
+### Features
+
+- **`flagify webhooks` command suite** — first user-facing webhook support in the CLI. Manage outbound HTTP subscriptions for flag and targeting events:
+  - `flagify webhooks list [-e <env>]` — aggregate view across every environment by default; `-e <env>` filters to one. The aggregate table adds an `Environment` column so it is obvious which env each hook belongs to.
+  - `flagify webhooks create -e <env> --name "..." --url https://... --events flag.created,flag.toggled` — environment is required. Webhooks are environment-scoped: each subscription targets a single environment (`development` / `staging` / `production`), so a project can ship distinct hooks per env without cross-talk. Project-wide events (`flag.created`/`updated`/`deleted`/`archived`) reach every webhook in the project; environment-scoped events (`flag.toggled`, `targeting_rule.*`) only reach hooks bound to that env.
+  - `flagify webhooks get <wh-id>`, `flagify webhooks delete <wh-id> --yes`, `flagify webhooks deliveries <wh-id>` — read, delete, inspect recent attempts (newest first, with HTTP code, attempt number, status).
+  - The signing secret is printed exactly once on `create`. Save it on the receiver (typically `FLAGIFY_WEBHOOK_SECRET`); Flagify cannot recover it later.
+
+### Documentation
+
+- **`flagify ai-setup` templates** (Claude / Cursor / Copilot / Windsurf) gain a Webhooks section so AI tooling steers new code toward the right pattern: CLI commands with `-e <env>`, the env-scope rule, supported events, a `verifyFlagifySignature` snippet (raw body + 5-min tolerance, `crypto.timingSafeEqual` to defeat length-extension comparisons), and the real payload shape with snake_case `metadata` keys. Tests assert each generated file contains the new content so the rule does not silently drift out of templates.
+- README webhooks section updated for `--environment`.
+
+### Bug fixes
+
+- **`flagify webhooks deliveries`** now decodes the API's paginated response wrapper correctly. Prior to this release the command was reading the response as a bare array — the actual API shape is `{ data, hasMore, nextCursor }`, so deliveries silently came back empty.
+
 ## [v2.0.0](https://github.com/flagifyhq/cli/releases/tag/v2.0.0) — 2026-04-23
 
 ### Breaking changes
