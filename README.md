@@ -572,26 +572,31 @@ flagify segments delete seg_xxx
 
 ### `flagify webhooks list`
 
-List webhooks subscribed to events in the current project.
+List webhooks in the current project. By default returns the aggregate view across every environment; pass `--environment` (or set it as a config default) to scope the result to one environment, e.g. only the production hooks.
 
 ```bash
-flagify webhooks list
+flagify webhooks list                              # all environments
+flagify webhooks list -e production                # only production hooks
 flagify webhooks list -p proj_xxx --format json
 ```
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--project` | `-p` | Project ID (falls back to config default) |
+| `--environment` | `-e` | Filter to one environment slug or ID (optional) |
 | `--format` |  | Output format (`table`, `json`) |
+
+The aggregate table includes an extra `Environment` column so you can see at a glance which env each hook belongs to; the env-filtered view drops that column.
 
 ---
 
 ### `flagify webhooks create`
 
-Create a webhook subscribed to one or more flag/targeting events. The signing secret is printed **exactly once** — save it on the receiver (e.g. `FLAGIFY_WEBHOOK_SECRET=...`); Flagify can not retrieve it later. If you lose it, delete and recreate the webhook.
+Create a webhook subscribed to one or more flag/targeting events. Webhooks are **environment-scoped**: each subscription targets a single environment, so a project can ship distinct hooks for `development`, `staging`, and `production` without cross-talk. The signing secret is printed **exactly once** — save it on the receiver (e.g. `FLAGIFY_WEBHOOK_SECRET=...`); Flagify can not retrieve it later. If you lose it, delete and recreate the webhook.
 
 ```bash
 flagify webhooks create \
+  --environment production \
   --name "Slack #releases" \
   --url https://hooks.slack.com/services/T00/B00/xxx \
   --events flag.created,flag.toggled,flag.deleted
@@ -599,11 +604,13 @@ flagify webhooks create \
 
 Supported events: `flag.created`, `flag.updated`, `flag.toggled`, `flag.deleted`, `targeting_rule.created`, `targeting_rule.updated`, `targeting_rule.deleted`. Pass `--events ""` (or omit) to receive every supported event.
 
-| Flag | Description |
-|------|-------------|
-| `--name` | Display name (required) |
-| `--url` | Receiver URL, must be `https://` for production (required) |
-| `--events` | Comma-separated event list; empty = all events |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--project` | `-p` | Project ID or slug (falls back to config default) |
+| `--environment` | `-e` | Environment slug or ID (required — falls back to config default) |
+| `--name` |  | Display name (required) |
+| `--url` |  | Receiver URL, must be `https://` for production (required) |
+| `--events` |  | Comma-separated event list; empty = all events |
 
 ---
 

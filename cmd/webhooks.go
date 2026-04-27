@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +21,13 @@ save it; you can not retrieve it later.`,
 
 var webhooksListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all webhooks in a project",
+	Short: "List webhooks in a project (optionally filtered by environment)",
+	Long: `List webhooks in the active project.
+
+By default this returns the project-aggregate view across every
+environment. Pass --environment (or set it via 'flagify config set
+environment ...') to restrict the result to a single environment, e.g.
+when reviewing only the production hooks.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rc, err := resolveContext(cmd)
 		if err != nil {
@@ -36,7 +43,7 @@ var webhooksListCmd = &cobra.Command{
 			return err
 		}
 
-		webhooks, err := client.ListWebhooks(project)
+		webhooks, err := client.ListWebhooks(project, rc.Environment)
 		if err != nil {
 			return handleAccessError(err, rc)
 		}
@@ -46,34 +53,58 @@ var webhooksListCmd = &cobra.Command{
 		}
 
 		if len(webhooks) == 0 {
-			fmt.Println(ui.Info("No webhooks found."))
+			if rc.Environment != "" {
+				fmt.Println(ui.Info(fmt.Sprintf("No webhooks found in %s.", ui.Cyan(rc.Environment))))
+			} else {
+				fmt.Println(ui.Info("No webhooks found."))
+			}
+			return nil
+		}
+
+		// Show the env column only on the aggregate view; the env-filtered
+		// view collapses it to keep the table narrow on small terminals.
+		if rc.Environment == "" {
+			rows := make([][]string, len(webhooks))
+			for i, wh := range webhooks {
+				rows[i] = []string{wh.Name, wh.URL, formatEvents(wh.Events), ui.Dim(webhookStatus(wh)), ui.Dim(wh.EnvironmentID), ui.Dim(wh.ID)}
+			}
+			fmt.Println(ui.Table([]string{"Name", "URL", "Events", "Status", "Environment", "ID"}, rows))
 			return nil
 		}
 
 		rows := make([][]string, len(webhooks))
 		for i, wh := range webhooks {
-			status := "active"
-			if !wh.Active {
-				status = "paused"
-			}
-			if wh.DisabledAt != nil {
-				status = "auto-disabled"
-			}
-			events := "all"
-			if len(wh.Events) > 0 {
-				events = strings.Join(wh.Events, ", ")
-			}
-			rows[i] = []string{wh.Name, wh.URL, events, ui.Dim(status), ui.Dim(wh.ID)}
+			rows[i] = []string{wh.Name, wh.URL, formatEvents(wh.Events), ui.Dim(webhookStatus(wh)), ui.Dim(wh.ID)}
 		}
 		fmt.Println(ui.Table([]string{"Name", "URL", "Events", "Status", "ID"}, rows))
 		return nil
 	},
 }
 
+func webhookStatus(wh api.Webhook) string {
+	if wh.DisabledAt != nil {
+		return "auto-disabled"
+	}
+	if !wh.Active {
+		return "paused"
+	}
+	return "active"
+}
+
+func formatEvents(events []string) string {
+	if len(events) == 0 {
+		return "all"
+	}
+	return strings.Join(events, ", ")
+}
+
 var webhooksCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new webhook",
-	Long: `Create a new webhook subscribed to one or more events.
+	Short: "Create a new webhook in an environment",
+	Long: `Create a new webhook subscribed to one or more events. Webhooks
+are environment-scoped: each subscription targets a single environment
+(e.g. production), so a project can ship distinct hooks for dev, staging,
+and prod without cross-talk.
 
 The signing secret is printed exactly once. Save it in an environment
 variable (e.g. FLAGIFY_WEBHOOK_SECRET) on the receiver — Flagify cannot
@@ -81,6 +112,7 @@ recover it later.
 
 Example:
   flagify webhooks create \
+    --environment production \
     --name "Slack #releases" \
     --url https://hooks.slack.com/services/... \
     --events flag.created,flag.toggled,flag.deleted`,
@@ -90,8 +122,12 @@ Example:
 			return err
 		}
 		project := rc.ProjectIdentifier()
+		env := rc.Environment
 		if project == "" {
 			return fmt.Errorf("--project is required (or run 'flagify projects pick' / 'flagify init')")
+		}
+		if env == "" {
+			return fmt.Errorf("--environment is required (or run 'flagify environments pick')")
 		}
 
 		name, _ := cmd.Flags().GetString("name")
@@ -119,7 +155,7 @@ Example:
 			return err
 		}
 
-		wh, err := client.CreateWebhook(project, map[string]any{
+		wh, err := client.CreateWebhook(project, env, map[string]any{
 			"name":   name,
 			"url":    url,
 			"events": events,
@@ -132,15 +168,12 @@ Example:
 			return ui.PrintJSON(wh)
 		}
 
-		fmt.Println(ui.Success(fmt.Sprintf("Created webhook %s", ui.Cyan(wh.Name))))
+		fmt.Println(ui.Success(fmt.Sprintf("Created webhook %s in %s", ui.Cyan(wh.Name), ui.Cyan(env))))
 		fmt.Println()
 		fmt.Println(ui.KeyValue("ID:", wh.ID))
 		fmt.Println(ui.KeyValue("URL:", wh.URL))
-		if len(wh.Events) > 0 {
-			fmt.Println(ui.KeyValue("Events:", strings.Join(wh.Events, ", ")))
-		} else {
-			fmt.Println(ui.KeyValue("Events:", "all"))
-		}
+		fmt.Println(ui.KeyValue("Environment:", wh.EnvironmentID))
+		fmt.Println(ui.KeyValue("Events:", formatEvents(wh.Events)))
 		fmt.Println(ui.KeyValue("Secret:", wh.Secret))
 		fmt.Println()
 		fmt.Println(ui.Warning("Save the secret now — it won't be shown again."))

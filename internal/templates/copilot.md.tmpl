@@ -61,6 +61,27 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 - Typed flag keys (codegen): `flagify types --typescript` writes `./flagify.ts` (`FLAG_KEYS` + `FlagKey`); `flagify types --go --package <pkg>` writes `./flagify.go` (`FlagXxx` consts). Use `FLAG_KEYS['name']` instead of raw strings to catch typos at compile time. Regenerate whenever flags change.
 - Configuration: `flagify config`, `flagify config set <key> <value>`
 - Valid config keys: api-url, workspace, project, environment
+- Webhooks (outbound HTTP events, environment-scoped): `flagify webhooks list [-e <env>]`, `flagify webhooks create -e <env> --name "..." --url https://... --events flag.created,flag.toggled`, `flagify webhooks deliveries <wh-id>`, `flagify webhooks delete <wh-id> --yes`. Each hook binds to one environment; project-wide events (`flag.created/updated/deleted/archived`) reach every hook in the project, env-scoped events (`flag.toggled`, `targeting_rule.*`) only reach the hooks bound to that env.
+
+## Webhooks — verifying the signature in Node.js
+
+Use the **raw** request body (Express: `express.raw({ type: 'application/json' })`) — the signature is HMAC-SHA256 of `<X-Flagify-Timestamp>.<rawBody>` keyed on the signing secret you saved at create time. The signing secret is printed once; store it as `FLAGIFY_WEBHOOK_SECRET` on the receiver.
+
+```typescript
+import crypto from 'crypto'
+
+function verifyFlagifySignature(req, body: Buffer, secret: string, toleranceSec = 300) {
+  const header = req.headers['x-flagify-signature'] || ''
+  const m = header.match(/t=(\d+),v1=([0-9a-f]+)/)
+  if (!m) return false
+  const [, ts, sig] = m
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > toleranceSec) return false
+  const expected = crypto.createHmac('sha256', secret).update(`${ts}.${body.toString()}`).digest('hex')
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))
+}
+```
+
+Payload top-level: `{ id, event, createdAt, data: { resource, actor, workspaceId, projectId, environmentId, metadata } }`. `data.environmentId` is always populated (falls back to the webhook's own env on project-wide events). `metadata` keys are snake_case and vary per event (`flag_key`, `environment_key`, `field`, `old_value`, `new_value`, `rule_count`, etc.). Use `event.id` as your idempotency key — deliveries are at-least-once.
 
 ## Environments: development, staging, production
 

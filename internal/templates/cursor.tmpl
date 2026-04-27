@@ -72,6 +72,29 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 - Typed flag keys (codegen): `flagify types --typescript` (writes `./flagify.ts` with `FLAG_KEYS` + `FlagKey`) or `flagify types --go --package <pkg>` (writes `./flagify.go` with `FlagXxx` consts). Import the generated module and prefer `flagify.isEnabled(FLAG_KEYS['new-checkout-flow'])` over raw strings to catch typos at compile time. Regenerate whenever flags change.
 - Configuration: `flagify config`, `flagify config set <key> <value>`
 - Valid config keys: api-url, workspace, project, environment
+- Webhooks (env-scoped outbound HTTP events): `flagify webhooks list [-e <env>]` | `flagify webhooks create -e <env> --name "..." --url https://... --events flag.created,flag.toggled` | `flagify webhooks deliveries <wh-id>` | `flagify webhooks delete <wh-id> --yes`. Each hook binds to one environment.
+
+## Webhooks — outbound HTTP events
+
+Each webhook is bound to **one environment**. Project-wide events (`flag.created`, `flag.updated`, `flag.deleted`, `flag.archived`) fan out to every hook in the project; environment-specific events (`flag.toggled`, `targeting_rule.*`) only reach hooks bound to that env. The signing secret is shown exactly once at create time — save it on the receiver as `FLAGIFY_WEBHOOK_SECRET`.
+
+Verify the signature in Node.js with the **raw** request body (Express needs `express.raw({ type: 'application/json' })`). The signed input is `<X-Flagify-Timestamp>.<rawBody>`, HMAC-SHA256 keyed on the secret.
+
+```typescript
+import crypto from 'crypto'
+
+function verifyFlagifySignature(req, body: Buffer, secret: string, toleranceSec = 300) {
+  const header = req.headers['x-flagify-signature'] || ''
+  const m = header.match(/t=(\d+),v1=([0-9a-f]+)/)
+  if (!m) return false
+  const [, ts, sig] = m
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > toleranceSec) return false
+  const expected = crypto.createHmac('sha256', secret).update(`${ts}.${body.toString()}`).digest('hex')
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))
+}
+```
+
+Payload: `{ id, event, createdAt, data: { resource, actor, workspaceId, projectId, environmentId, metadata } }`. `data.environmentId` is always populated. `metadata` keys are snake_case (`flag_key`, `environment_key`, `field`, `old_value`, `new_value`, `rule_count`, …) and vary per event. Use `event.id` as your idempotency key — deliveries are at-least-once.
 
 ## Key Types
 - `pk_*` (publishable) — safe for client/browser code
