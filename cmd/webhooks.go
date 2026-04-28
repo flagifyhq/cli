@@ -210,19 +210,9 @@ var webhooksGetCmd = &cobra.Command{
 
 		fmt.Println(ui.KeyValue("Name:", wh.Name))
 		fmt.Println(ui.KeyValue("URL:", wh.URL))
-		if len(wh.Events) > 0 {
-			fmt.Println(ui.KeyValue("Events:", strings.Join(wh.Events, ", ")))
-		} else {
-			fmt.Println(ui.KeyValue("Events:", "all"))
-		}
-		status := "active"
-		if !wh.Active {
-			status = "paused"
-		}
-		if wh.DisabledAt != nil {
-			status = "auto-disabled"
-		}
-		fmt.Println(ui.KeyValue("Status:", status))
+		fmt.Println(ui.KeyValue("Environment:", wh.EnvironmentID))
+		fmt.Println(ui.KeyValue("Events:", formatEvents(wh.Events)))
+		fmt.Println(ui.KeyValue("Status:", webhookStatus(*wh)))
 		fmt.Println(ui.KeyValue("ID:", wh.ID))
 		return nil
 	},

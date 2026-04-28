@@ -17,9 +17,9 @@ All notable changes to the Flagify CLI will be documented in this file.
 - **`flagify ai-setup` templates** (Claude / Cursor / Copilot / Windsurf) gain a Webhooks section so AI tooling steers new code toward the right pattern: CLI commands with `-e <env>`, the env-scope rule, supported events, a `verifyFlagifySignature` snippet (raw body + 5-min tolerance, `crypto.timingSafeEqual` to defeat length-extension comparisons), and the real payload shape with snake_case `metadata` keys. Tests assert each generated file contains the new content so the rule does not silently drift out of templates.
 - README webhooks section updated for `--environment`.
 
-### Bug fixes
+### Pre-release polish
 
-- **`flagify webhooks deliveries`** now decodes the API's paginated response wrapper correctly. Prior to this release the command was reading the response as a bare array — the actual API shape is `{ data, hasMore, nextCursor }`, so deliveries silently came back empty.
+- **`flagify webhooks deliveries`** decodes the API's paginated `{ data, hasMore, nextCursor }` envelope. The earlier in-development version of the command (never tagged) tried to decode the body as a bare `[]WebhookDelivery` and would have errored on the first call; folded into v2.1.0 alongside the env-scoping work so the first user-facing release ships a working command.
 
 ## [v2.0.0](https://github.com/flagifyhq/cli/releases/tag/v2.0.0) — 2026-04-23
 
