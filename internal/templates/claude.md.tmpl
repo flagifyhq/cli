@@ -148,6 +148,78 @@ flagify projects list
 flagify workspaces list
 ```
 
+### Webhooks (outbound HTTP events)
+```
+flagify webhooks list                                # all environments
+flagify webhooks list -e production                  # filter to one environment
+flagify webhooks create -e production \
+  --name "Slack #releases" \
+  --url https://hooks.slack.com/services/T00/B00/xxx \
+  --events flag.created,flag.toggled,flag.deleted    # comma-list, empty = all events
+flagify webhooks deliveries wh_01...                 # recent attempts (newest first)
+flagify webhooks delete wh_01... --yes
+```
+- **Webhooks are scoped to a single environment.** Each subscription targets one of `development` / `staging` / `production`, so you can ship distinct hooks per env without cross-talk.
+- **Signing secret is shown exactly once at create time.** Save it on the receiver as `FLAGIFY_WEBHOOK_SECRET`; Flagify can not retrieve it later.
+- **Project-wide events** (`flag.created`, `flag.updated`, `flag.deleted`, `flag.archived`) reach every webhook in the project. **Environment-scoped events** (`flag.toggled`, `targeting_rule.*`) reach only webhooks bound to that environment.
+- Supported events: `flag.created`, `flag.updated`, `flag.toggled`, `flag.deleted`, `targeting_rule.created`, `targeting_rule.updated`, `targeting_rule.deleted`.
+
+#### Verifying a webhook in Node.js (Express)
+
+Mount `express.raw()` on the webhook route — re-serializing the parsed JSON breaks the signature. The signed input is `<X-Flagify-Timestamp>.<rawBody>`.
+
+```typescript
+import crypto from 'crypto'
+import express from 'express'
+
+function verifyFlagifySignature(req: express.Request, body: Buffer, secret: string, toleranceSec = 300) {
+  const header = (req.headers['x-flagify-signature'] as string) || ''
+  const match = header.match(/t=(\d+),v1=([0-9a-f]+)/)
+  if (!match) return false
+  const [, ts, sig] = match
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > toleranceSec) return false
+  const expected = crypto.createHmac('sha256', secret).update(`${ts}.${body.toString()}`).digest('hex')
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))
+}
+
+app.post('/webhooks/flagify', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!verifyFlagifySignature(req, req.body, process.env.FLAGIFY_WEBHOOK_SECRET!)) {
+    return res.status(401).end()
+  }
+  const event = JSON.parse(req.body.toString())
+  // event.id is unique per delivery — use as idempotency key.
+  // event.data.environmentId tells you which env it came from.
+  res.status(200).end()
+})
+```
+
+#### Payload shape
+
+Every delivery is a JSON object with this top-level envelope. Treat unknown fields as forward-compatible additions; the receiver should ignore them rather than reject the body.
+
+```json
+{
+  "id": "01KQ7...",
+  "event": "flag.toggled",
+  "createdAt": "2026-04-27T16:37:12.776331Z",
+  "data": {
+    "resource": { "type": "flag_environment", "id": "01KP6..." },
+    "actor":    { "userId": "01KP5...", "email": "alice@acme.com", "name": "" },
+    "workspaceId":   "01KP5...",
+    "projectId":     "01KP5...",
+    "environmentId": "01KP5...",
+    "metadata": {
+      "flag_key": "oauth-login-enabled",
+      "field": "status",
+      "old_value": "inactive",
+      "new_value": "active"
+    }
+  }
+}
+```
+
+`data.environmentId` is always present — for project-wide events it falls back to the webhook's own environment so receivers can route by env without null-checks. `metadata` keys are **snake_case** and vary per event (`flag_key`, `environment_key`, `variant_count`, `rule_count`, etc.).
+
 ## Integrations
 
 Flagify ships integrations with the tools teams already use. Browse the full catalogue at [flagify.dev/integrations](https://flagify.dev/integrations). Highlights:

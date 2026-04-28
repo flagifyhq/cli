@@ -28,6 +28,10 @@ func TestGenerateCursor(t *testing.T) {
 	assert.Contains(t, string(content), "isEnabled(")
 	assert.Contains(t, string(content), "@flagify/react")
 	assert.Contains(t, string(content), "flagify types")
+	// Webhook section landed and explains env scope + signature path.
+	assert.Contains(t, string(content), "flagify webhooks")
+	assert.Contains(t, string(content), "verifyFlagifySignature")
+	assert.Contains(t, string(content), "environmentId")
 }
 
 func TestGenerateWindsurf(t *testing.T) {
@@ -45,6 +49,9 @@ func TestGenerateWindsurf(t *testing.T) {
 	assert.Contains(t, string(content), "Flagify Feature Flags")
 	assert.Contains(t, string(content), "useFlag")
 	assert.Contains(t, string(content), "flagify types")
+	assert.Contains(t, string(content), "flagify webhooks")
+	assert.Contains(t, string(content), "verifyFlagifySignature")
+	assert.Contains(t, string(content), "environmentId")
 }
 
 func TestGenerateCopilot(t *testing.T) {
@@ -62,6 +69,9 @@ func TestGenerateCopilot(t *testing.T) {
 	assert.Contains(t, string(content), "Flagify Feature Flags")
 	assert.Contains(t, string(content), "isEnabled")
 	assert.Contains(t, string(content), "flagify types")
+	assert.Contains(t, string(content), "flagify webhooks")
+	assert.Contains(t, string(content), "verifyFlagifySignature")
+	assert.Contains(t, string(content), "environmentId")
 }
 
 func TestGenerateClaude(t *testing.T) {
@@ -80,6 +90,11 @@ func TestGenerateClaude(t *testing.T) {
 	assert.Contains(t, string(content), "@flagify/node")
 	assert.Contains(t, string(content), "flagify types")
 	assert.Contains(t, string(content), "FLAG_KEYS")
+	// Webhook block: CLI commands, env-scope rule, signature helper, payload.
+	assert.Contains(t, string(content), "flagify webhooks list")
+	assert.Contains(t, string(content), "verifyFlagifySignature")
+	assert.Contains(t, string(content), "environmentId")
+	assert.Contains(t, string(content), "FLAGIFY_WEBHOOK_SECRET")
 
 	// Check slash commands were created
 	_, err = os.ReadFile(filepath.Join(dir, ".claude", "commands", "flagify-create.md"))
