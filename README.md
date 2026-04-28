@@ -616,7 +616,7 @@ Supported events: `flag.created`, `flag.updated`, `flag.toggled`, `flag.deleted`
 
 ### `flagify webhooks get`
 
-Show one webhook's URL, events, and status.
+Show one webhook's URL, environment, events, and status. The Environment field is rendered as the human-readable env name (e.g. `production`); use `--format json` to get the raw `environmentId` ULID.
 
 ```bash
 flagify webhooks get wh_01...

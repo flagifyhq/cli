@@ -248,6 +248,17 @@ func (c *Client) DeleteProject(projectID string) error {
 	return c.Delete("/v1/projects/" + projectID)
 }
 
+// ListEnvironments returns the environments for a project. Used by the
+// CLI to resolve env ULIDs returned in webhook payloads back to their
+// human-readable keys (`development`, `staging`, etc.) for table
+// rendering — the API never returns the env key alongside webhooks
+// because environments live in their own table.
+func (c *Client) ListEnvironments(projectID string) ([]Environment, error) {
+	var result []Environment
+	err := c.Get("/v1/projects/"+projectID+"/environments", &result)
+	return result, err
+}
+
 // Flags
 
 type Flag struct {

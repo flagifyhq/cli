@@ -64,9 +64,20 @@ when reviewing only the production hooks.`,
 		// Show the env column only on the aggregate view; the env-filtered
 		// view collapses it to keep the table narrow on small terminals.
 		if rc.Environment == "" {
+			// One extra GET per command invocation maps env ULIDs back
+			// to human names so users see "production" instead of a
+			// raw ULID in the table.
+			envNames := loadEnvNames(client, project)
 			rows := make([][]string, len(webhooks))
 			for i, wh := range webhooks {
-				rows[i] = []string{wh.Name, wh.URL, formatEvents(wh.Events), ui.Dim(webhookStatus(wh)), ui.Dim(wh.EnvironmentID), ui.Dim(wh.ID)}
+				rows[i] = []string{
+					wh.Name,
+					wh.URL,
+					formatEvents(wh.Events),
+					ui.Dim(webhookStatus(wh)),
+					ui.Dim(resolveEnvName(envNames, wh.EnvironmentID)),
+					ui.Dim(wh.ID),
+				}
 			}
 			fmt.Println(ui.Table([]string{"Name", "URL", "Events", "Status", "Environment", "ID"}, rows))
 			return nil
@@ -98,6 +109,33 @@ func formatEvents(events []string) string {
 	return strings.Join(events, ", ")
 }
 
+// resolveEnvName returns the human-readable env name for a ULID, with
+// the ULID itself as a fallback when the lookup fails. Used by every
+// webhook read path so users see "production" instead of
+// "01HXYZ..." in tables and key/value output. The map is built once
+// per command invocation by `loadEnvNames`.
+func resolveEnvName(envs map[string]string, id string) string {
+	if name, ok := envs[id]; ok {
+		return name
+	}
+	return id
+}
+
+// loadEnvNames fetches the project's environments and returns a
+// id→name map. A failure is non-fatal: the caller falls back to
+// rendering raw ULIDs, which is uglier but still correct.
+func loadEnvNames(client *api.Client, projectID string) map[string]string {
+	out := map[string]string{}
+	envs, err := client.ListEnvironments(projectID)
+	if err != nil {
+		return out
+	}
+	for _, e := range envs {
+		out[e.ID] = e.Name
+	}
+	return out
+}
+
 var webhooksCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new webhook in an environment",
@@ -115,7 +153,7 @@ Example:
     --environment production \
     --name "Slack #releases" \
     --url https://hooks.slack.com/services/... \
-    --events flag.created,flag.toggled,flag.deleted`,
+    --events flag.created,flag.toggled,flag.archived`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rc, err := resolveContext(cmd)
 		if err != nil {
@@ -208,9 +246,10 @@ var webhooksGetCmd = &cobra.Command{
 			return ui.PrintJSON(wh)
 		}
 
+		envNames := loadEnvNames(client, project)
 		fmt.Println(ui.KeyValue("Name:", wh.Name))
 		fmt.Println(ui.KeyValue("URL:", wh.URL))
-		fmt.Println(ui.KeyValue("Environment:", wh.EnvironmentID))
+		fmt.Println(ui.KeyValue("Environment:", resolveEnvName(envNames, wh.EnvironmentID)))
 		fmt.Println(ui.KeyValue("Events:", formatEvents(wh.Events)))
 		fmt.Println(ui.KeyValue("Status:", webhookStatus(*wh)))
 		fmt.Println(ui.KeyValue("ID:", wh.ID))
@@ -274,6 +313,11 @@ var webhooksDeliveriesCmd = &cobra.Command{
 			return err
 		}
 
+		// Pull the parent webhook so we can show which env this hook
+		// is bound to in the deliveries header. Cheap (single GET) and
+		// avoids forcing the user to cross-reference `webhooks get`.
+		wh, whErr := client.GetWebhook(project, args[0])
+
 		deliveries, err := client.ListWebhookDeliveries(project, args[0])
 		if err != nil {
 			return handleAccessError(err, rc)
@@ -281,6 +325,15 @@ var webhooksDeliveriesCmd = &cobra.Command{
 
 		if ui.IsJSON(cmd) {
 			return ui.PrintJSON(deliveries)
+		}
+
+		// Header line surfaces the env so a user troubleshooting "which
+		// env's prod hook is failing?" can see at a glance.
+		if whErr == nil && wh != nil {
+			envNames := loadEnvNames(client, project)
+			fmt.Println(ui.KeyValue("Webhook:", wh.Name))
+			fmt.Println(ui.KeyValue("Environment:", resolveEnvName(envNames, wh.EnvironmentID)))
+			fmt.Println()
 		}
 
 		if len(deliveries) == 0 {
