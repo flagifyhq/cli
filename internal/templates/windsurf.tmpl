@@ -61,6 +61,27 @@ The CLI auto-detects non-TTY environments and skips confirmation prompts automat
 - Typed keys: flagify types --typescript (./flagify.ts with FLAG_KEYS + FlagKey) | flagify types --go --package <pkg> (./flagify.go with FlagXxx consts). Regenerate on flag changes; prefer FLAG_KEYS['name'] over raw strings.
 - Config: flagify config | flagify config set <key> <value>
 - Valid config keys: api-url, workspace, project, environment
+- Webhooks (env-scoped): flagify webhooks list [-e <env>] | flagify webhooks create -e <env> --name "..." --url https://... --events flag.created,flag.toggled | flagify webhooks deliveries <wh-id> | flagify webhooks delete <wh-id> --yes
+
+## Webhooks
+
+Outbound HTTP events. Each hook binds to ONE environment. Project-wide events (flag.created/updated/deleted/archived) fan out to every hook in the project; env-specific events (flag.toggled, targeting_rule.*) only reach hooks bound to that env. Signing secret shown exactly once at create — save it on the receiver as FLAGIFY_WEBHOOK_SECRET.
+
+Verify the signature in Node.js with the raw body (Express: express.raw({ type: 'application/json' })). Signed input = `<X-Flagify-Timestamp>.<rawBody>`, HMAC-SHA256 keyed on the secret.
+
+```typescript
+import crypto from 'crypto'
+function verifyFlagifySignature(req, body: Buffer, secret: string, toleranceSec = 300) {
+  const m = (req.headers['x-flagify-signature'] || '').match(/t=(\d+),v1=([0-9a-f]+)/)
+  if (!m) return false
+  const [, ts, sig] = m
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > toleranceSec) return false
+  const expected = crypto.createHmac('sha256', secret).update(`${ts}.${body.toString()}`).digest('hex')
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))
+}
+```
+
+Payload: { id, event, createdAt, data: { resource, actor, workspaceId, projectId, environmentId, metadata } }. data.environmentId always populated. metadata keys are snake_case (flag_key, environment_key, field, old_value, new_value, rule_count, ...) and vary per event. Use event.id as idempotency key — deliveries are at-least-once.
 
 ## Key types
 - pk_* (publishable) — safe for client/browser

@@ -248,6 +248,17 @@ func (c *Client) DeleteProject(projectID string) error {
 	return c.Delete("/v1/projects/" + projectID)
 }
 
+// ListEnvironments returns the environments for a project. Used by the
+// CLI to resolve env ULIDs returned in webhook payloads back to their
+// human-readable keys (`development`, `staging`, etc.) for table
+// rendering — the API never returns the env key alongside webhooks
+// because environments live in their own table.
+func (c *Client) ListEnvironments(projectID string) ([]Environment, error) {
+	var result []Environment
+	err := c.Get("/v1/projects/"+projectID+"/environments", &result)
+	return result, err
+}
+
 // Flags
 
 type Flag struct {
@@ -466,4 +477,80 @@ func (c *Client) GetFlagHealth(projectID string) ([]HealthIssue, error) {
 	var result []HealthIssue
 	err := c.Get("/v1/projects/"+projectID+"/overview/health", &result)
 	return result, err
+}
+
+// Webhooks
+
+type Webhook struct {
+	ID            string     `json:"id"`
+	ProjectID     string     `json:"projectId"`
+	EnvironmentID string     `json:"environmentId"`
+	Name          string     `json:"name"`
+	URL           string     `json:"url"`
+	// Returned only on Create — subsequent reads omit the field.
+	Secret     string     `json:"secret,omitempty"`
+	Events     []string   `json:"events"`
+	Active     bool       `json:"active"`
+	DisabledAt *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+type WebhookDelivery struct {
+	ID           string     `json:"id"`
+	WebhookID    string     `json:"webhookId"`
+	EventAction  string     `json:"eventAction"`
+	Status       string     `json:"status"`
+	Attempt      int        `json:"attempt"`
+	ResponseCode *int       `json:"responseCode,omitempty"`
+	Error        *string    `json:"error,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	DeliveredAt  *time.Time `json:"deliveredAt,omitempty"`
+}
+
+// webhookDeliveriesPage matches the API's paginated response shape. The
+// CLI flattens it to a slice for table rendering and ignores the cursor
+// because the command surfaces only the first page.
+type webhookDeliveriesPage struct {
+	Data       []WebhookDelivery `json:"data"`
+	HasMore    bool              `json:"hasMore"`
+	NextCursor string            `json:"nextCursor,omitempty"`
+}
+
+// ListWebhooks lists webhooks for a project. When `envKeyOrID` is set the
+// API restricts the result to the environment-scoped subset; an empty
+// value falls back to the project-aggregate view.
+func (c *Client) ListWebhooks(projectID, envKeyOrID string) ([]Webhook, error) {
+	var result []Webhook
+	path := "/v1/projects/" + projectID + "/webhooks"
+	if envKeyOrID != "" {
+		path = "/v1/projects/" + projectID + "/environments/" + envKeyOrID + "/webhooks"
+	}
+	err := c.Get(path, &result)
+	return result, err
+}
+
+// CreateWebhook always targets a specific environment; the env identifier
+// (slug or ULID) is required and is sent as a path segment so the API's
+// scoped middleware resolves it before the handler runs.
+func (c *Client) CreateWebhook(projectID, envKeyOrID string, body map[string]any) (*Webhook, error) {
+	var result Webhook
+	err := c.Post("/v1/projects/"+projectID+"/environments/"+envKeyOrID+"/webhooks", body, &result)
+	return &result, err
+}
+
+func (c *Client) GetWebhook(projectID, webhookID string) (*Webhook, error) {
+	var result Webhook
+	err := c.Get("/v1/projects/"+projectID+"/webhooks/"+webhookID, &result)
+	return &result, err
+}
+
+func (c *Client) DeleteWebhook(projectID, webhookID string) error {
+	return c.Delete("/v1/projects/" + projectID + "/webhooks/" + webhookID)
+}
+
+func (c *Client) ListWebhookDeliveries(projectID, webhookID string) ([]WebhookDelivery, error) {
+	var page webhookDeliveriesPage
+	err := c.Get("/v1/projects/"+projectID+"/webhooks/"+webhookID+"/deliveries", &page)
+	return page.Data, err
 }

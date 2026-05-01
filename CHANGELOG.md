@@ -2,6 +2,24 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.1.0](https://github.com/flagifyhq/cli/releases/tag/v2.1.0) — 2026-04-27
+
+### Features
+
+- **`flagify webhooks` command suite** — first user-facing webhook support in the CLI. Manage outbound HTTP subscriptions for flag and targeting events:
+  - `flagify webhooks list [-e <env>]` — aggregate view across every environment by default; `-e <env>` filters to one. The aggregate table adds an `Environment` column rendered as the human-readable env name (e.g. `production`) so it is obvious which env each hook belongs to.
+  - `flagify webhooks create -e <env> --name "..." --url https://... --events flag.created,flag.toggled` — environment is required. Webhooks are environment-scoped: each subscription targets a single environment (`development` / `staging` / `production`), so a project can ship distinct hooks per env without cross-talk. Project-wide events (`flag.created`, `flag.updated`, `flag.archived`, `flag.cloned`) reach every webhook in the project; environment-scoped events (`flag.toggled`, `flag.variants_set`, `flag.promoted`, `targeting.rules_set`) only reach hooks bound to that env.
+  - `flagify webhooks get <wh-id>` shows the webhook's URL, **environment** (resolved to the human name), events, and status.
+  - `flagify webhooks deliveries <wh-id>` includes a header line identifying the parent webhook and its environment so a multi-env troubleshooting workflow doesn't need to cross-reference `webhooks get`.
+  - `flagify webhooks delete <wh-id> --yes` removes a hook with confirmation (skipped in non-TTY contexts).
+  - The signing secret is printed exactly once on `create`. Save it on the receiver (typically `FLAGIFY_WEBHOOK_SECRET`); Flagify cannot recover it later.
+- **`flagify webhooks deliveries`** decodes the API's paginated `{ data, hasMore, nextCursor }` envelope (the earlier in-development version, never tagged, tried to decode the body as a bare array and would have errored on the first call — folded into the same release so the first user-facing webhooks build ships a working command).
+
+### Documentation
+
+- **`flagify ai-setup` templates** (Claude / Cursor / Copilot / Windsurf) gain a Webhooks section so AI tooling steers new code toward the right pattern: CLI commands with `-e <env>`, the env-scope rule, supported events, a `verifyFlagifySignature` snippet (raw body + 5-min tolerance, `crypto.timingSafeEqual` to defeat length-extension comparisons), and the real payload shape with snake_case `metadata` keys. Tests assert each generated file contains the new content so the rule does not silently drift out of templates.
+- README webhooks section updated for `--environment` and the new env-name rendering in `webhooks get` / `list` / `deliveries`.
+
 ## [v2.0.0](https://github.com/flagifyhq/cli/releases/tag/v2.0.0) — 2026-04-23
 
 ### Breaking changes
