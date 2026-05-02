@@ -92,7 +92,81 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	cfg, _ := config.Load()
 
-	return loginBrowser(cfg)
+	if err := loginBrowser(cfg); err != nil {
+		return err
+	}
+
+	maybeAdoptProfileForRepo(profile)
+	return nil
+}
+
+// adoptCandidate inspects the repo at cwd and returns the project file that
+// should be offered a preferredProfile rewrite for the freshly-logged-in
+// profile. Returns nil when no rewrite is warranted: no profile, no project
+// file in the walk, or the pin already matches. Pure function — separated
+// from the prompt so it can be covered in tests without a TTY.
+func adoptCandidate(cwd, profile string) *config.ProjectFile {
+	if profile == "" || cwd == "" {
+		return nil
+	}
+	pf, err := config.FindProjectFile(cwd)
+	if err != nil || pf == nil {
+		return nil
+	}
+	if pf.Data.PreferredProfile == profile {
+		return nil
+	}
+	return pf
+}
+
+// maybeAdoptProfileForRepo offers to rewrite the repo's .flagify/project.json
+// preferredProfile to the profile the user just logged into. Skipped outside
+// a TTY — non-interactive shells (CI, scripts) must never silently rewrite a
+// committable file on the user's behalf.
+func maybeAdoptProfileForRepo(profile string) {
+	if !ui.IsTTY() {
+		return
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	pf := adoptCandidate(cwd, profile)
+	if pf == nil {
+		return
+	}
+
+	previous := pf.Data.PreferredProfile
+	if previous == "" {
+		previous = "(none)"
+	}
+	fmt.Println(ui.Info(fmt.Sprintf(
+		"This repo pins preferredProfile=%s in %s.",
+		ui.Bold(previous),
+		displayPath(pf.Path),
+	)))
+	confirmed, err := ui.Confirm(
+		fmt.Sprintf("Set preferredProfile to %q for this repo?", profile),
+		false,
+	)
+	if err != nil || !confirmed {
+		fmt.Println(ui.Dim(fmt.Sprintf(
+			"Keeping preferredProfile=%s. Run 'flagify project set preferred-profile %s' to change it later.",
+			previous, profile,
+		)))
+		return
+	}
+
+	pf.Data.PreferredProfile = profile
+	if _, err := config.WriteProjectFile(pf.Dir, pf.Data); err != nil {
+		fmt.Println(ui.Warning("Failed to update project file: " + err.Error()))
+		return
+	}
+	fmt.Println(ui.Success(fmt.Sprintf(
+		"Updated preferredProfile to %s in %s",
+		ui.Bold(profile),
+		displayPath(pf.Path),
+	)))
 }
 
 func loginBrowser(cfg *config.Config) error {
