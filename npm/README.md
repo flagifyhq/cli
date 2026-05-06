@@ -84,6 +84,11 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify segments delete <id>` | Delete a segment by ID |
 | `flagify targeting list <flag-key>` | Show targeting rules for a flag in an environment (`--format json`; returns `{flag, environment, rules}`) |
 | `flagify targeting set <flag-key>` | Replace all targeting rules for a flag (`--rules '<json>'`, `--format json`) |
+| `flagify webhooks list` | List webhooks in a project; defaults to the aggregate view across environments (`--environment` to scope, `--format json`) |
+| `flagify webhooks create` | Create a webhook subscribed to one or more flag/targeting events. Environment-scoped — the signing secret is printed exactly once |
+| `flagify webhooks get <webhook-id>` | Show a webhook's URL, environment, events, and status (`--format json`) |
+| `flagify webhooks delete <webhook-id>` | Delete a webhook subscription |
+| `flagify webhooks deliveries <webhook-id>` | Show recent delivery attempts with status code and response excerpt (`--format json`, `--limit N`) |
 | `flagify whoami` | Show current authenticated user (`--format json`) |
 | `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
 | `flagify types` | Generate typed flag key constants (`--typescript` or `--go`) for compile-time safety in application code |
