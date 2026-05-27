@@ -90,7 +90,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify webhooks delete <webhook-id>` | Delete a webhook subscription |
 | `flagify webhooks deliveries <webhook-id>` | Show recent delivery attempts with status code and response excerpt (`--format json`, `--limit N`) |
 | `flagify whoami` | Show current authenticated user (`--format json`) |
-| `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
+| `flagify ai-setup` | Generate AI tool configs (Claude Code skill, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
 | `flagify types` | Generate typed flag key constants (`--typescript` or `--go`) for compile-time safety in application code |
 | `flagify config` | Show current configuration (`--format json`) |
 | `flagify config set <key> <value>` | Set a config value (api-url, console-url, workspace, project, environment) |

@@ -697,7 +697,7 @@ Rule object fields: `priority` (number), `enabled` (boolean), `segmentId` (optio
 
 ### `flagify ai-setup`
 
-Generate AI tool config files for your project. Creates config files so AI coding tools (Claude Code, Cursor, GitHub Copilot, Windsurf) understand your Flagify setup.
+Generate AI tool config files for your project. Creates config files so AI coding tools (Claude Code, Cursor, GitHub Copilot, Windsurf) understand your Flagify setup. For Claude Code, this generates a unified skill (`/flagify`) that routes natural-language requests to the correct CLI command.
 
 ```bash
 flagify ai-setup
@@ -726,10 +726,12 @@ flagify ai-setup --include-flags
 
 | Tool | Files |
 |------|-------|
-| Claude Code | `CLAUDE.md` (appends), `.claude/commands/flagify-create.md`, `.claude/commands/flagify-toggle.md`, `.claude/commands/flagify-list.md` |
+| Claude Code | `CLAUDE.md` (appends), `.claude/skills/flagify/SKILL.md` |
 | Cursor | `.cursorrules` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
 | Windsurf | `.windsurfrules` |
+
+> **Migration:** If you previously ran `ai-setup` and have `.claude/commands/flagify-create.md`, `.claude/commands/flagify-toggle.md`, or `.claude/commands/flagify-list.md`, delete them — they are no longer generated. The new `.claude/skills/flagify/SKILL.md` supersedes all three.
 
 ---
 

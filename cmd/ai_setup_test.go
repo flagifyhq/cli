@@ -90,19 +90,29 @@ func TestGenerateClaude(t *testing.T) {
 	assert.Contains(t, string(content), "@flagify/node")
 	assert.Contains(t, string(content), "flagify types")
 	assert.Contains(t, string(content), "FLAG_KEYS")
-	// Webhook block: CLI commands, env-scope rule, signature helper, payload.
 	assert.Contains(t, string(content), "flagify webhooks list")
 	assert.Contains(t, string(content), "verifyFlagifySignature")
 	assert.Contains(t, string(content), "environmentId")
 	assert.Contains(t, string(content), "FLAGIFY_WEBHOOK_SECRET")
+	assert.Contains(t, string(content), "/flagify")
 
-	// Check slash commands were created
+	skillContent, err := os.ReadFile(filepath.Join(dir, ".claude", "skills", "flagify", "SKILL.md"))
+	require.NoError(t, err)
+	skill := string(skillContent)
+	assert.Contains(t, skill, "name: flagify")
+	assert.Contains(t, skill, "flagify flags")
+	assert.Contains(t, skill, "flagify targeting")
+	assert.Contains(t, skill, "flagify types")
+	assert.Contains(t, skill, "flagify keys")
+	assert.Contains(t, skill, "flagify webhooks")
+
+	// Old commands must NOT be created
 	_, err = os.ReadFile(filepath.Join(dir, ".claude", "commands", "flagify-create.md"))
-	require.NoError(t, err)
+	assert.Error(t, err)
 	_, err = os.ReadFile(filepath.Join(dir, ".claude", "commands", "flagify-toggle.md"))
-	require.NoError(t, err)
+	assert.Error(t, err)
 	_, err = os.ReadFile(filepath.Join(dir, ".claude", "commands", "flagify-list.md"))
-	require.NoError(t, err)
+	assert.Error(t, err)
 }
 
 func TestGenerateClaudeAppendsToExisting(t *testing.T) {
@@ -121,6 +131,9 @@ func TestGenerateClaudeAppendsToExisting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "My Project")
 	assert.Contains(t, string(content), "Feature Flags")
+
+	_, err = os.ReadFile(filepath.Join(dir, ".claude", "skills", "flagify", "SKILL.md"))
+	require.NoError(t, err)
 }
 
 func TestGenerateWithFlagsContext(t *testing.T) {
@@ -140,6 +153,43 @@ func TestGenerateWithFlagsContext(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "dark-mode")
 	assert.Contains(t, string(content), "Active flags")
+}
+
+func TestGenerateWithFlagsContextClaude(t *testing.T) {
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(orig)
+
+	data := templates.Data{
+		FlagsContext: "\n## Active flags\n\n| Flag | Type |\n|------|------|\n| `dark-mode` | boolean |\n",
+	}
+
+	_, err := generateClaude(data)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, ".claude", "skills", "flagify", "SKILL.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "dark-mode")
+	assert.Contains(t, string(content), "Active flags")
+	assert.Contains(t, string(content), "may be outdated")
+}
+
+func TestSkillYAMLFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(orig)
+
+	_, err := generateClaude(emptyData)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, ".claude", "skills", "flagify", "SKILL.md"))
+	require.NoError(t, err)
+	skill := string(content)
+	assert.Contains(t, skill, "name: flagify")
+	assert.Contains(t, skill, "description:")
+	assert.Contains(t, skill, "argument-hint:")
 }
 
 func TestIsValidTool(t *testing.T) {
