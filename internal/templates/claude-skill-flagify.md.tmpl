@@ -1,0 +1,128 @@
+---
+name: flagify
+description: "Manage Flagify feature flags, API keys, targeting rules, webhooks, typed codegen, config, projects, and workspaces. Trigger: flagify, feature flag, flag create, flag toggle, flag list, targeting, webhook, flag types, flag keys."
+argument-hint: "<operation> [args]"
+---
+
+# Flagify CLI Skill
+
+Route the user's natural-language request to the correct `flagify` CLI command. All commands assume the CLI is authenticated (`flagify auth login`) and a project is bound (`flagify init` or `flagify projects pick`).
+
+## Routing Table
+
+| Intent | CLI Command | Mode |
+|--------|------------|------|
+| List flags | `flagify flags list [--format json]` | inline |
+| Get flag details | `flagify flags get <key> [--format json]` | inline |
+| Create a flag | `flagify flags create <key> --type <type> [--description "..."]` | inline |
+| Toggle a flag | `flagify flags toggle <key> [-e <env>]` | inline |
+| Flag health check | `flagify flags health [--format json]` | inline |
+| List API keys | `flagify keys list -e <env>` | inline |
+| Generate API keys | `flagify keys generate -e <env>` | inline |
+| Revoke API keys | `flagify keys revoke <prefix> -e <env>` | inline |
+| List targeting rules | `flagify targeting list <key> [-e <env>]` | inline |
+| Set targeting rules | `flagify targeting set <key> -e <env> --rules '<json>'` | subagent |
+| List webhooks | `flagify webhooks list [-e <env>]` | inline |
+| Create a webhook | `flagify webhooks create -e <env> --name "..." --url <url> --events <events>` | subagent |
+| Webhook deliveries | `flagify webhooks deliveries <id>` | inline |
+| Delete a webhook | `flagify webhooks delete <id> --yes` | inline |
+| Generate TypeScript types | `flagify types --typescript [-o <path>]` | subagent |
+| Generate Go types | `flagify types --go [--package <pkg>] [-o <path>]` | subagent |
+| Show config | `flagify config` | inline |
+| Set config value | `flagify config set <key> <value>` | inline |
+| Get config value | `flagify config get <key>` | inline |
+| Show status | `flagify status` | inline |
+| Who am I | `flagify whoami` | inline |
+| List projects | `flagify projects list` | inline |
+| List workspaces | `flagify workspaces list` | inline |
+| Unknown operation | Suggest `flagify --help` and list available domains | inline |
+
+## Input Validation
+
+Before executing any command, validate inputs:
+
+- **Flag names**: must match `^[a-z][a-z0-9]*(-[a-z0-9]+)*$` (kebab-case). If the user provides `darkMode`, suggest `dark-mode`. If they provide `dark_mode`, suggest `dark-mode`. Reject and explain before running the CLI.
+- **Flag types**: must be one of `boolean`, `string`, `number`, `json`. If invalid, list the valid types and ask.
+- **Environments**: must be one of `development`, `staging`, `production`. If invalid, list the valid environments and ask.
+- **Webhook URLs**: must start with `https://`. Reject plain `http://` URLs.
+- **Webhook events**: valid events are `flag.created`, `flag.updated`, `flag.toggled`, `flag.deleted`, `targeting_rule.created`, `targeting_rule.updated`, `targeting_rule.deleted`. If the user specifies unknown events, list valid ones.
+
+## Inline Operations
+
+For operations marked **inline** in the routing table, execute directly via Bash. Pattern:
+
+1. Validate inputs per the rules above.
+2. Build the CLI command string.
+3. Run via `Bash` tool: the command exactly as shown in the routing table, substituting user-provided values.
+4. Present the output to the user.
+
+Examples:
+
+- "list my flags" → `flagify flags list`
+- "create a boolean flag called dark-mode" → `flagify flags create dark-mode --type boolean`
+- "toggle checkout-flow in production" → `flagify flags toggle checkout-flow -e production`
+- "show my API keys for staging" → `flagify keys list -e staging`
+- "show targeting rules for admin-tools" → `flagify targeting list admin-tools`
+- "check flag health" → `flagify flags health`
+- "show config" → `flagify config`
+- "who am I" → `flagify whoami`
+
+## Complex Operations (Subagent)
+
+For operations marked **subagent**, spawn an Agent with `model: "haiku"` to handle multi-step reasoning.
+
+### Targeting Rules (`flagify targeting set`)
+
+Dispatch to Agent:
+```
+Agent({
+  description: "Set Flagify targeting rules",
+  model: "haiku",
+  prompt: "Run `flagify targeting list <key> -e <env>` to see the current rules format. Then construct a JSON rules array matching the user's intent: '<natural language description>'. The rules schema is an array of objects with fields: attribute (string), operator (equals|not_equals|contains|starts_with|ends_with|in|not_in), value (string|array), flagValue (the value to return when matched). Run `flagify targeting set <key> -e <env> --rules '<json>'` with the constructed JSON. Show the user the rules before applying."
+})
+```
+
+### Webhooks Create (`flagify webhooks create`)
+
+Dispatch to Agent:
+```
+Agent({
+  description: "Create Flagify webhook",
+  model: "haiku",
+  prompt: "Help the user create a Flagify webhook. Gather: environment (development/staging/production), name, URL (must be HTTPS), and events (flag.created, flag.updated, flag.toggled, flag.deleted, targeting_rule.created, targeting_rule.updated, targeting_rule.deleted — empty means all). Run `flagify webhooks create -e <env> --name '<name>' --url <url> --events <comma-list>`. IMPORTANT: the signing secret is shown exactly once at create time — tell the user to save it immediately as FLAGIFY_WEBHOOK_SECRET."
+})
+```
+
+### Types Generate (`flagify types`)
+
+Dispatch to Agent:
+```
+Agent({
+  description: "Generate Flagify typed constants",
+  model: "haiku",
+  prompt: "Help the user generate typed flag key constants. Determine the language (TypeScript or Go) and output path. For TypeScript: `flagify types --typescript [-o <path>]`. For Go: `flagify types --go [--package <pkg>] [-o <path>]`. If no output path specified, use defaults (./flagify.ts or ./flagify.go). After generation, remind the user to import FLAG_KEYS/FlagKey for compile-time safety and to regenerate whenever flags change."
+})
+```
+
+## Error Handling
+
+If a CLI command fails, map the error to an actionable message:
+
+| Error Pattern | Message |
+|--------------|---------|
+| `401`, `403`, `unauthorized`, `not authenticated` | Not authenticated. Run `flagify auth login` in your terminal first. |
+| `404`, `not found` | Resource not found. Check the flag key, project slug, or webhook ID and try again. |
+| `403`, `forbidden`, `permission` | Permission denied. Check your access level for this workspace/project. |
+| `connection refused`, `timeout`, `no such host` | Could not reach the Flagify API. Check your connection and retry. |
+| `no project configured` | No project configured. Run `flagify projects pick` or `flagify init` to bind a project first. |
+
+## User Context & Targeting
+
+For details on how targeting rules interact with the SDKs (React Provider `options.user`, Node.js `evaluate()`, user object shape), see the **User context & targeting** section in this project's `CLAUDE.md`. The CLI manages targeting rules server-side; the SDKs consume evaluated values.
+{{- if .FlagsContext}}
+
+## Flags Snapshot
+
+> **This snapshot may be outdated.** Run `flagify flags list` for live data.
+{{.FlagsContext}}
+{{- end}}

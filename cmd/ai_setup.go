@@ -167,23 +167,15 @@ func generateClaude(data templates.Data) (string, error) {
 		return "", err
 	}
 
-	commandTemplates := map[string]string{
-		".claude/commands/flagify-create.md": "claude-command-create.md.tmpl",
-		".claude/commands/flagify-toggle.md": "claude-command-toggle.md.tmpl",
-		".claude/commands/flagify-list.md":   "claude-command-list.md.tmpl",
+	skillContent, err := templates.Render("claude-skill-flagify.md.tmpl", data)
+	if err != nil {
+		return "", err
+	}
+	if err := writeFile(".claude/skills/flagify/SKILL.md", skillContent); err != nil {
+		return "", err
 	}
 
-	for path, tmplName := range commandTemplates {
-		body, err := templates.Render(tmplName, data)
-		if err != nil {
-			return "", err
-		}
-		if err := writeFile(path, body); err != nil {
-			return "", err
-		}
-	}
-
-	return "CLAUDE.md + .claude/commands/", nil
+	return "CLAUDE.md + .claude/skills/flagify/", nil
 }
 
 func generateCursor(data templates.Data) (string, error) {

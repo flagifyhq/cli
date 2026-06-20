@@ -53,7 +53,7 @@ flagify flags toggle my-flag -p <project-id>
 
 | Command | Description |
 |---------|-------------|
-| `flagify auth login` | Sign in with the browser flow (`--profile <name>` to add a second identity without signing out of the first). If the current repo has a `.flagify/project.json` whose `preferredProfile` points elsewhere, the CLI prompts (TTY only) to rewrite the pin to the profile you just authenticated. |
+| `flagify auth login` | Sign in with the browser flow (`--profile <name>` to add a second identity without signing out of the first). If the current repo has a `.flagify/project.json` whose `preferredProfile` points elsewhere, the CLI prompts (TTY only) to rewrite the pin to the profile you just authenticated. If the browser comes back without tokens (expired session / interrupted flow), the CLI auto-reopens the flow on a TTY (up to 3 attempts); non-TTY runs get a single actionable error. |
 | `flagify auth logout` | Sign out of the active profile (`--profile <name>` or `--all`) |
 | `flagify auth list` | List signed-in profiles (`--format json`) |
 | `flagify auth switch <name>` | Set the active profile |
@@ -90,7 +90,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify webhooks delete <webhook-id>` | Delete a webhook subscription |
 | `flagify webhooks deliveries <webhook-id>` | Show recent delivery attempts with status code and response excerpt (`--format json`, `--limit N`) |
 | `flagify whoami` | Show current authenticated user (`--format json`) |
-| `flagify ai-setup` | Generate AI tool configs (Claude, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
+| `flagify ai-setup` | Generate AI tool configs (Claude Code skill, Cursor, Copilot, Windsurf). Includes the integrations catalogue; use `--include-flags` for a snapshot |
 | `flagify types` | Generate typed flag key constants (`--typescript` or `--go`) for compile-time safety in application code |
 | `flagify config` | Show current configuration (`--format json`) |
 | `flagify config set <key> <value>` | Set a config value (api-url, console-url, workspace, project, environment) |

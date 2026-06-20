@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -169,31 +170,92 @@ func maybeAdoptProfileForRepo(profile string) {
 	)))
 }
 
-func loginBrowser(cfg *config.Config) error {
-	hostname, _ := os.Hostname()
-	deviceID := "cli-" + hostname
+// maxLoginAttempts bounds the browser OAuth flow: the initial attempt plus two
+// reopens. Each reopen recovers from a callback that arrived without tokens
+// (expired browser session or an interrupted/stale flow). Non-TTY contexts cap
+// this at 1 — reopening a browser in CI/scripts is meaningless.
+const maxLoginAttempts = 3
 
-	consoleURL := cfg.ConsoleUrl
-	if consoleURL == "" {
-		if strings.Contains(cfg.APIUrl, "localhost") || strings.HasPrefix(cfg.APIUrl, "http://local-") {
-			consoleURL = localConsoleURL
-		} else {
-			consoleURL = defaultConsoleURL
+// errAuthTimedOut and errAuthIncomplete are the terminal outcomes of the login
+// loop. errAuthIncomplete is the single actionable message shown when every
+// attempt's callback lacked tokens (and the only message a non-TTY run gets).
+var (
+	errAuthTimedOut   = errors.New("authentication timed out")
+	errAuthIncomplete = errors.New("could not complete authentication — the browser session may have expired or the flow was interrupted. Run `flagify auth login` again")
+)
+
+type attemptStatus int
+
+const (
+	attemptSuccess attemptStatus = iota
+	attemptExpired               // callback arrived without tokens
+	attemptTimeout               // outer context deadline hit
+	attemptError                 // setup failure (e.g. listener could not bind)
+)
+
+type attemptOutcome struct {
+	status       attemptStatus
+	accessToken  string
+	refreshToken string
+	err          error
+}
+
+type callbackResult struct {
+	accessToken  string
+	refreshToken string
+	err          error
+}
+
+func resolveConsoleURL(cfg *config.Config) string {
+	if cfg.ConsoleUrl != "" {
+		return cfg.ConsoleUrl
+	}
+	if strings.Contains(cfg.APIUrl, "localhost") || strings.HasPrefix(cfg.APIUrl, "http://local-") {
+		return localConsoleURL
+	}
+	return defaultConsoleURL
+}
+
+// runLoginLoop drives the bounded retry over an injectable per-attempt function
+// so the decision logic is testable without a real browser or listener. It
+// retries only on attemptExpired, up to `attempts`; success returns tokens,
+// timeout and setup errors return immediately, and an exhausted budget returns
+// the single actionable errAuthIncomplete. It never writes credentials — the
+// caller persists only on a clean success, so failures leave no partial state.
+func runLoginLoop(attempts int, attempt func(attemptNo int) attemptOutcome) (accessToken, refreshToken string, err error) {
+	for i := 1; i <= attempts; i++ {
+		outcome := attempt(i)
+		switch outcome.status {
+		case attemptSuccess:
+			return outcome.accessToken, outcome.refreshToken, nil
+		case attemptTimeout:
+			return "", "", errAuthTimedOut
+		case attemptError:
+			return "", "", outcome.err
+		case attemptExpired:
+			if i < attempts {
+				fmt.Println(ui.Warning(fmt.Sprintf(
+					"Authorization did not complete (no tokens received). Retrying… (attempt %d of %d)",
+					i+1, attempts,
+				)))
+				continue
+			}
 		}
 	}
+	return "", "", errAuthIncomplete
+}
 
-	// Start local callback server
+// runBrowserAttempt performs one OAuth attempt: bind a fresh listener, open the
+// browser to the console, and wait on the callback or the shared outer context.
+// The server is shut down on return (defer), so each attempt gets a fresh
+// listener/port/channel and no stale result leaks into a later attempt.
+func runBrowserAttempt(ctx context.Context, consoleURL, deviceID string) attemptOutcome {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return fmt.Errorf("failed to start local server: %w", err)
+		return attemptOutcome{status: attemptError, err: fmt.Errorf("failed to start local server: %w", err)}
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 
-	type callbackResult struct {
-		accessToken  string
-		refreshToken string
-		err          error
-	}
 	resultCh := make(chan callbackResult, 1)
 
 	mux := http.NewServeMux()
@@ -215,8 +277,8 @@ func loginBrowser(cfg *config.Config) error {
 
 	server := &http.Server{Handler: mux}
 	go server.Serve(listener)
+	defer server.Shutdown(context.Background())
 
-	// Open browser
 	authURL := fmt.Sprintf("%s/auth/cli-auth?p=%d&did=%s", consoleURL, port, url.QueryEscape(deviceID))
 
 	fmt.Printf("%s Opening browser to authenticate...\n", ui.Arrow())
@@ -228,38 +290,54 @@ func loginBrowser(cfg *config.Config) error {
 
 	fmt.Printf("%s Waiting for authorization...\n", ui.Arrow())
 
-	// Wait for callback or timeout
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			return attemptOutcome{status: attemptExpired}
+		}
+		return attemptOutcome{status: attemptSuccess, accessToken: result.accessToken, refreshToken: result.refreshToken}
+	case <-ctx.Done():
+		return attemptOutcome{status: attemptTimeout}
+	}
+}
+
+func loginBrowser(cfg *config.Config) error {
+	hostname, _ := os.Hostname()
+	deviceID := "cli-" + hostname
+	consoleURL := resolveConsoleURL(cfg)
+
+	// One outer timeout bounds the whole flow across all attempts.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	select {
-	case result := <-resultCh:
-		server.Shutdown(context.Background())
-		if result.err != nil {
-			return fmt.Errorf("authentication failed: %w", result.err)
-		}
-
-		cfg.AccessToken = result.accessToken
-		cfg.RefreshToken = result.refreshToken
-		cfg.Token = ""
-		cfg.Workspace = ""
-		cfg.WorkspaceID = ""
-		cfg.Project = ""
-		cfg.ProjectID = ""
-		cfg.Environment = ""
-
-		if err := config.Save(cfg); err != nil {
-			return fmt.Errorf("failed to save credentials: %w", err)
-		}
-
-		fmt.Println(ui.Success("Authenticated successfully."))
-		maybeAutoSelect(cfg)
-		return nil
-
-	case <-ctx.Done():
-		server.Shutdown(context.Background())
-		return fmt.Errorf("authentication timed out")
+	attempts := maxLoginAttempts
+	if !ui.IsTTY() {
+		attempts = 1 // never reopen the browser in CI/scripts
 	}
+
+	accessToken, refreshToken, err := runLoginLoop(attempts, func(int) attemptOutcome {
+		return runBrowserAttempt(ctx, consoleURL, deviceID)
+	})
+	if err != nil {
+		return err
+	}
+
+	cfg.AccessToken = accessToken
+	cfg.RefreshToken = refreshToken
+	cfg.Token = ""
+	cfg.Workspace = ""
+	cfg.WorkspaceID = ""
+	cfg.Project = ""
+	cfg.ProjectID = ""
+	cfg.Environment = ""
+
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("failed to save credentials: %w", err)
+	}
+
+	fmt.Println(ui.Success("Authenticated successfully."))
+	maybeAutoSelect(cfg)
+	return nil
 }
 
 func init() {

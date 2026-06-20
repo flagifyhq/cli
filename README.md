@@ -101,6 +101,8 @@ Re-running `flagify auth login` does not error when another profile is already s
 
 If you log into a profile from a directory that already has a `.flagify/project.json`, and the committed `preferredProfile` does not match the profile you just authenticated, the CLI prompts to rewrite the pin to the newly logged-in profile. Skipped outside a TTY so CI never mutates committed files silently.
 
+If the browser flow comes back without tokens — typically an expired console session or a flow you closed before authorizing — the CLI no longer exits on the first try. On a TTY it reopens the browser automatically (up to 3 attempts), printing a message between attempts, so you can re-authenticate in the same `flagify auth login` run. In non-interactive contexts it does not loop: it prints a single actionable error. The overall 5-minute timeout bounds the whole flow, and no partial credentials are written if every attempt fails.
+
 ### `flagify whoami`
 
 Show the currently resolved user and which profile the invocation is using.
@@ -697,7 +699,7 @@ Rule object fields: `priority` (number), `enabled` (boolean), `segmentId` (optio
 
 ### `flagify ai-setup`
 
-Generate AI tool config files for your project. Creates config files so AI coding tools (Claude Code, Cursor, GitHub Copilot, Windsurf) understand your Flagify setup.
+Generate AI tool config files for your project. Creates config files so AI coding tools (Claude Code, Cursor, GitHub Copilot, Windsurf) understand your Flagify setup. For Claude Code, this generates a unified skill (`/flagify`) that routes natural-language requests to the correct CLI command.
 
 ```bash
 flagify ai-setup
@@ -726,10 +728,12 @@ flagify ai-setup --include-flags
 
 | Tool | Files |
 |------|-------|
-| Claude Code | `CLAUDE.md` (appends), `.claude/commands/flagify-create.md`, `.claude/commands/flagify-toggle.md`, `.claude/commands/flagify-list.md` |
+| Claude Code | `CLAUDE.md` (appends), `.claude/skills/flagify/SKILL.md` |
 | Cursor | `.cursorrules` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
 | Windsurf | `.windsurfrules` |
+
+> **Migration:** If you previously ran `ai-setup` and have `.claude/commands/flagify-create.md`, `.claude/commands/flagify-toggle.md`, or `.claude/commands/flagify-list.md`, delete them — they are no longer generated. The new `.claude/skills/flagify/SKILL.md` supersedes all three.
 
 ---
 
