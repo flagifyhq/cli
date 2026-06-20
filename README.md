@@ -101,6 +101,8 @@ Re-running `flagify auth login` does not error when another profile is already s
 
 If you log into a profile from a directory that already has a `.flagify/project.json`, and the committed `preferredProfile` does not match the profile you just authenticated, the CLI prompts to rewrite the pin to the newly logged-in profile. Skipped outside a TTY so CI never mutates committed files silently.
 
+If the browser flow comes back without tokens — typically an expired console session or a flow you closed before authorizing — the CLI no longer exits on the first try. On a TTY it reopens the browser automatically (up to 3 attempts), printing a message between attempts, so you can re-authenticate in the same `flagify auth login` run. In non-interactive contexts it does not loop: it prints a single actionable error. The overall 5-minute timeout bounds the whole flow, and no partial credentials are written if every attempt fails.
+
 ### `flagify whoami`
 
 Show the currently resolved user and which profile the invocation is using.
