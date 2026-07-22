@@ -172,16 +172,37 @@ func Resolve(input ResolveInput) (*ResolvedConfig, error) {
 	}
 
 	// 3. Resolve each scope field independently.
+	//
+	// Cross-invalidation: a partial workspace override must not be shadowed by
+	// the sibling field persisted in the project file. `-w slug` without
+	// `--workspace-id` discards the file's WorkspaceID (ID wins over slug in
+	// WorkspaceIdentifier, so the stale ULID would otherwise swallow the
+	// override); the symmetric case discards the file's slug. Either way the
+	// file's ProjectID is discarded too — a project ULID is meaningless under a
+	// different workspace. Only the project-file candidates are dropped: flag,
+	// env, and profile-default precedence is unchanged.
+	pfWorkspace := projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.Workspace })
+	pfWorkspaceID := projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.WorkspaceID })
+	pfProjectID := projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.ProjectID })
+	if input.Flags.Workspace != "" && input.Flags.WorkspaceID == "" {
+		pfWorkspaceID = ""
+		pfProjectID = ""
+	}
+	if input.Flags.WorkspaceID != "" && input.Flags.Workspace == "" {
+		pfWorkspace = ""
+		pfProjectID = ""
+	}
+
 	rc.Workspace, rc.Sources["workspace"] = resolveField(
 		input.Flags.Workspace,
 		input.Env.Workspace,
-		projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.Workspace }),
+		pfWorkspace,
 		accountDefault(rc.Account, func(d Defaults) string { return d.Workspace }),
 	)
 	rc.WorkspaceID, rc.Sources["workspaceId"] = resolveField(
 		input.Flags.WorkspaceID,
 		input.Env.WorkspaceID,
-		projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.WorkspaceID }),
+		pfWorkspaceID,
 		accountDefault(rc.Account, func(d Defaults) string { return d.WorkspaceID }),
 	)
 	rc.Project, rc.Sources["project"] = resolveField(
@@ -193,7 +214,7 @@ func Resolve(input ResolveInput) (*ResolvedConfig, error) {
 	rc.ProjectID, rc.Sources["projectId"] = resolveField(
 		input.Flags.ProjectID,
 		input.Env.ProjectID,
-		projectFileValue(rc.ProjectFile, func(d ProjectFileData) string { return d.ProjectID }),
+		pfProjectID,
 		accountDefault(rc.Account, func(d Defaults) string { return d.ProjectID }),
 	)
 	rc.Environment, rc.Sources["environment"] = resolveField(
