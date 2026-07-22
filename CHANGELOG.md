@@ -2,6 +2,16 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.2.0](https://github.com/flagifyhq/cli/releases/tag/v2.2.0) — 2026-07-22
+
+### Breaking changes
+
+- **Scoped commands now verify workspace membership before the business call, and the `access denied` message changed.** When the authenticated account is not a member of the resolved workspace, the CLI fails fast with an actionable error instead of surfacing an opaque 403 after the call. In non-TTY contexts (CI, scripts) it additionally clears the stale workspace binding from `.flagify/project.json` (auto-confirmed, the same convention as every other prompt) so the next invocation resolves cleanly instead of looping. If a pipeline matched on the old `access denied — … Config cleared` text, update it: the message now states exactly what was cleared. Pin scope explicitly with `-w`/`--workspace-id` or `FLAGIFY_WORKSPACE_ID` in CI if you do not want to depend on a committed binding. The check costs one `GET /v1/workspaces` per scoped command; identity and recovery commands (`whoami`, `status`, `init`, the `pick` commands, `workspaces list`) are exempt, and a failing lookup never blocks the command (#51).
+
+### Bug fixes
+
+- **Re-authenticating a profile under an account without access to the repo's bound workspace no longer wedges every scoped command in an `access denied` loop.** Three coordinated fixes: (1) a partial `-w`/`--workspace-id` override now discards the project file's stale sibling identifier — and its dependent project ULID — for that invocation, so a flag override can always escape a stale committed binding (previously the stale `workspaceId` ULID shadowed the `-w` slug, because IDs win over slugs); (2) the preventive membership check above detects the mismatch up front — on a TTY it offers a one-time workspace re-pick used for the current invocation; (3) the 403 backstop no longer claims "Config cleared" when it only cleared the profile's saved defaults — it reports exactly what it cleared and offers (with confirmation, `--yes` respected) to also clear the stale binding from `.flagify/project.json`. Sibling fields (`workspaceId`, `workspace`, `projectId`, `project`) are always cleared together so a partial clear can never create a new loop; `environment` and `preferredProfile` are preserved, and ephemeral `FLAGIFY_ACCESS_TOKEN` identities never touch the file (#51).
+
 ## [v2.1.0](https://github.com/flagifyhq/cli/releases/tag/v2.1.0) — 2026-06-20
 
 ### Breaking changes

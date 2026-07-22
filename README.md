@@ -897,6 +897,8 @@ flagify completion fish > ~/.config/fish/completions/flagify.fish
 
 These flags are available on every command. Precedence for scope resolution: flag > env var > `.flagify/project.json` > binding > active profile's defaults > built-in defaults. IDs win over slugs at the same level.
 
+A partial workspace override escapes a stale committed binding: passing `-w` without `--workspace-id` (or the reverse) makes the resolver ignore the project file's sibling workspace identifier — and its dependent project ULID — for that invocation. Scoped commands also verify that the authenticated account is a member of the resolved workspace before calling the API: on a TTY a mismatch offers a one-time workspace re-pick; in non-interactive contexts the command fails fast with recovery instructions and clears the stale binding from `.flagify/project.json` (auto-confirmed) so the next run resolves cleanly. `whoami`, `status`, `init`, the `pick` commands, and `workspaces list` are never gated by this check.
+
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--profile` | | Profile to use (overrides `FLAGIFY_PROFILE`, bindings, and `current`) |
