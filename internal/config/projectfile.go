@@ -92,6 +92,21 @@ func readProjectFile(path, dir string) (*ProjectFile, error) {
 	return &ProjectFile{Path: path, Dir: dir, Data: pfd}, nil
 }
 
+// ClearWorkspaceBinding returns a copy of pfd with the workspace-scoped
+// binding fields (WorkspaceID, Workspace, ProjectID, Project) cleared
+// together. A project identifier is meaningless under a different workspace,
+// so the four fields are only ever invalidated as a unit — a partial clear
+// would leave a sibling stale value that recreates the very loop this helper
+// exists to break. Version, Environment, and PreferredProfile are preserved.
+// Confirmation is the caller's job: this package never prompts.
+func ClearWorkspaceBinding(pfd ProjectFileData) ProjectFileData {
+	pfd.WorkspaceID = ""
+	pfd.Workspace = ""
+	pfd.ProjectID = ""
+	pfd.Project = ""
+	return pfd
+}
+
 // WriteProjectFile creates or overwrites .flagify/project.json under dir.
 // The write is atomic (temp + rename). Tokens are never accepted — the caller
 // must construct ProjectFileData explicitly, so there is no accidental leak path.

@@ -1,11 +1,58 @@
 package cmd
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
 )
+
+// workspacesTestClient serves a fixed ListWorkspaces payload from a local
+// httptest server and returns a client pointed at it.
+func workspacesTestClient(t *testing.T, workspaces []api.Workspace) *api.Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/workspaces" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(workspaces)
+	}))
+	t.Cleanup(srv.Close)
+	client := api.NewClient("test-token")
+	client.SetBaseURL(srv.URL)
+	return client
+}
+
+// stubConfirm replaces the project-file confirmation seam for one test and
+// restores it on cleanup. Returns a pointer to the last skip value received.
+func stubConfirm(t *testing.T, answer bool) *bool {
+	t.Helper()
+	orig := confirmProjectFileClear
+	lastSkip := new(bool)
+	confirmProjectFileClear = func(_ string, skip bool) (bool, error) {
+		*lastSkip = skip
+		return answer || skip, nil
+	}
+	t.Cleanup(func() { confirmProjectFileClear = orig })
+	return lastSkip
+}
+
+func readProjectFileForTest(t *testing.T, dir string) config.ProjectFileData {
+	t.Helper()
+	pf, err := config.FindProjectFile(dir)
+	if err != nil {
+		t.Fatalf("read project file: %v", err)
+	}
+	if pf == nil {
+		t.Fatalf("project file missing under %s", dir)
+	}
+	return pf.Data
+}
 
 func TestGetClientFromResolved_NoAccountFails(t *testing.T) {
 	rc := &config.ResolvedConfig{Profile: "work"}
@@ -172,5 +219,243 @@ func TestHandleAccessError_PassesNon403Through(t *testing.T) {
 	got := handleAccessError(orig, &config.ResolvedConfig{Profile: "work"})
 	if got != orig {
 		t.Fatalf("non-403 error should pass through unchanged, got: %v", got)
+	}
+}
+
+func TestHandleAccessError_ReconcilesStaleProjectBinding(t *testing.T) {
+	// 403 with the project file bound to the failing workspace: the global
+	// store clears silently, the project file clears after confirmation
+	// (auto-confirmed here — tests run without a TTY), and the message states
+	// both. Sibling fields clear together; environment and profile survive.
+	seedStore(t, &config.Store{
+		Version: config.StoreVersion,
+		Current: "work",
+		Accounts: map[string]*config.Account{
+			"work": {
+				AccessToken: "wt",
+				Defaults:    config.Defaults{WorkspaceID: "ws_stale", ProjectID: "pr_1"},
+			},
+		},
+	})
+	projDir := t.TempDir()
+	pf, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID:      "ws_stale",
+		Workspace:        "acme",
+		ProjectID:        "pr_1",
+		Project:          "api",
+		Environment:      "staging",
+		PreferredProfile: "work",
+	})
+	if err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+
+	rc := &config.ResolvedConfig{Profile: "work", WorkspaceID: "ws_stale", ProjectFile: pf}
+	accessErr := handleAccessError(&api.APIError{StatusCode: 403}, rc)
+	if accessErr == nil {
+		t.Fatalf("expected wrapped access error")
+	}
+	if !strings.Contains(accessErr.Error(), "saved defaults") ||
+		!strings.Contains(accessErr.Error(), "workspace binding") {
+		t.Fatalf("message must state exactly what was cleared, got: %v", accessErr)
+	}
+
+	if after := loadStoreForTest(t); after.Accounts["work"].Defaults.WorkspaceID != "" {
+		t.Fatalf("store defaults should be cleared: %+v", after.Accounts["work"].Defaults)
+	}
+
+	data := readProjectFileForTest(t, projDir)
+	if data.WorkspaceID != "" || data.Workspace != "" || data.ProjectID != "" || data.Project != "" {
+		t.Fatalf("workspace binding must be fully cleared, got: %+v", data)
+	}
+	if data.Environment != "staging" || data.PreferredProfile != "work" {
+		t.Fatalf("environment/preferredProfile must be preserved, got: %+v", data)
+	}
+}
+
+func TestHandleAccessError_DeclinedConfirmKeepsProjectFile(t *testing.T) {
+	stubConfirm(t, false)
+	seedStore(t, &config.Store{
+		Version:  config.StoreVersion,
+		Current:  "work",
+		Accounts: map[string]*config.Account{"work": {AccessToken: "wt"}},
+	})
+	projDir := t.TempDir()
+	pf, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID: "ws_stale", Workspace: "acme", ProjectID: "pr_1", Project: "api",
+	})
+	if err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+
+	rc := &config.ResolvedConfig{Profile: "work", WorkspaceID: "ws_stale", ProjectFile: pf}
+	accessErr := handleAccessError(&api.APIError{StatusCode: 403}, rc)
+	if accessErr == nil {
+		t.Fatalf("expected wrapped access error")
+	}
+	if !strings.Contains(accessErr.Error(), "still references this workspace") {
+		t.Fatalf("declined reconcile must be surfaced honestly, got: %v", accessErr)
+	}
+	if data := readProjectFileForTest(t, projDir); data.WorkspaceID != "ws_stale" {
+		t.Fatalf("declined confirmation must leave the project file untouched, got: %+v", data)
+	}
+}
+
+func TestHandleAccessError_UnrelatedWorkspaceLeavesProjectFileAlone(t *testing.T) {
+	// The failing workspace came from a flag override, not from the file: the
+	// committeable binding is not the culprit and must not be offered up.
+	seedStore(t, &config.Store{
+		Version:  config.StoreVersion,
+		Current:  "work",
+		Accounts: map[string]*config.Account{"work": {AccessToken: "wt"}},
+	})
+	projDir := t.TempDir()
+	pf, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID: "ws_file", Workspace: "acme",
+	})
+	if err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+
+	rc := &config.ResolvedConfig{Profile: "work", Workspace: "other-team", ProjectFile: pf}
+	accessErr := handleAccessError(&api.APIError{StatusCode: 403}, rc)
+	if accessErr == nil {
+		t.Fatalf("expected wrapped access error")
+	}
+	if strings.Contains(accessErr.Error(), "workspace binding") {
+		t.Fatalf("message must not claim the project file was cleared, got: %v", accessErr)
+	}
+	if data := readProjectFileForTest(t, projDir); data.WorkspaceID != "ws_file" {
+		t.Fatalf("unrelated project file must stay untouched, got: %+v", data)
+	}
+}
+
+func TestValidateWorkspaceMembership_MemberPasses(t *testing.T) {
+	client := workspacesTestClient(t, []api.Workspace{{ID: "ws_a", Slug: "alpha"}})
+
+	byID := &config.ResolvedConfig{WorkspaceID: "ws_a", Sources: map[string]config.Source{}}
+	if err := validateWorkspaceMembership(byID, client, false); err != nil {
+		t.Fatalf("member by ID must pass: %v", err)
+	}
+
+	bySlug := &config.ResolvedConfig{Workspace: "alpha", Sources: map[string]config.Source{}}
+	if err := validateWorkspaceMembership(bySlug, client, false); err != nil {
+		t.Fatalf("member by slug must pass: %v", err)
+	}
+}
+
+func TestValidateWorkspaceMembership_EmptyScopeSkips(t *testing.T) {
+	client := workspacesTestClient(t, nil)
+	rc := &config.ResolvedConfig{Sources: map[string]config.Source{}}
+	if err := validateWorkspaceMembership(rc, client, false); err != nil {
+		t.Fatalf("empty workspace scope must skip validation: %v", err)
+	}
+}
+
+func TestValidateWorkspaceMembership_ListFailureSkipsGuard(t *testing.T) {
+	// A defensive check must not cost availability: an unreachable
+	// ListWorkspaces lets the command proceed to its own call.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+	client := api.NewClient("test-token")
+	client.SetBaseURL(srv.URL)
+
+	rc := &config.ResolvedConfig{WorkspaceID: "ws_a", Sources: map[string]config.Source{}}
+	if err := validateWorkspaceMembership(rc, client, false); err != nil {
+		t.Fatalf("ListWorkspaces failure must skip the guard: %v", err)
+	}
+}
+
+func TestValidateWorkspaceMembership_NoTTYFullFlowNoLoop(t *testing.T) {
+	// Full flow: repo bound to workspace A, profile re-authenticated as an
+	// account that only sees workspace B. First scoped invocation errors with
+	// an actionable message and reconciles the committed binding
+	// (auto-confirm without a TTY); the second invocation resolves cleanly
+	// instead of replaying the same failure.
+	seedStore(t, &config.Store{
+		Version:  config.StoreVersion,
+		Current:  "b",
+		Accounts: map[string]*config.Account{"b": {AccessToken: "tb"}},
+	})
+	projDir := t.TempDir()
+	if _, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID: "ws_a", Workspace: "alpha", ProjectID: "pr_a", Project: "core",
+		Environment: "development",
+	}); err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+	client := workspacesTestClient(t, []api.Workspace{{ID: "ws_b", Slug: "beta"}})
+
+	first, err := config.Resolve(config.ResolveInput{Store: loadStoreForTest(t), CWD: projDir})
+	if err != nil {
+		t.Fatalf("first resolve: %v", err)
+	}
+	if first.WorkspaceIdentifier() != "ws_a" {
+		t.Fatalf("stale binding should resolve first, got %q", first.WorkspaceIdentifier())
+	}
+
+	firstErr := validateWorkspaceMembership(first, client, false)
+	if firstErr == nil {
+		t.Fatalf("mismatch must error in no-TTY")
+	}
+	if !strings.Contains(firstErr.Error(), "flagify projects pick") ||
+		!strings.Contains(firstErr.Error(), "-w <slug>") {
+		t.Fatalf("no-TTY error must name the recovery paths, got: %v", firstErr)
+	}
+	if data := readProjectFileForTest(t, projDir); data.WorkspaceID != "" || data.Environment != "development" {
+		t.Fatalf("binding must be reconciled, environment preserved, got: %+v", data)
+	}
+
+	second, err := config.Resolve(config.ResolveInput{Store: loadStoreForTest(t), CWD: projDir})
+	if err != nil {
+		t.Fatalf("second resolve: %v", err)
+	}
+	if second.WorkspaceIdentifier() != "" {
+		t.Fatalf("second invocation must not resolve the stale workspace, got %q", second.WorkspaceIdentifier())
+	}
+	if err := validateWorkspaceMembership(second, client, false); err != nil {
+		t.Fatalf("second invocation must not replay the mismatch: %v", err)
+	}
+}
+
+func TestClearProjectFileBinding_PropagatesYesFlag(t *testing.T) {
+	lastSkip := stubConfirm(t, true)
+	projDir := t.TempDir()
+	pf, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID: "ws_stale", Workspace: "acme", Environment: "staging",
+	})
+	if err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+
+	rc := &config.ResolvedConfig{ProjectFile: pf}
+	if !clearProjectFileBinding(rc, "ws_stale", true) {
+		t.Fatalf("expected the binding to be cleared")
+	}
+	if !*lastSkip {
+		t.Fatalf("--yes must reach the confirmation as skip=true")
+	}
+	if data := readProjectFileForTest(t, projDir); data.WorkspaceID != "" || data.Environment != "staging" {
+		t.Fatalf("binding cleared, environment preserved — got: %+v", data)
+	}
+}
+
+func TestClearProjectFileBinding_EnvTokenNeverTouchesFile(t *testing.T) {
+	projDir := t.TempDir()
+	pf, err := config.WriteProjectFile(projDir, config.ProjectFileData{
+		WorkspaceID: "ws_stale", Workspace: "acme",
+	})
+	if err != nil {
+		t.Fatalf("write project file: %v", err)
+	}
+
+	rc := &config.ResolvedConfig{ProjectFile: pf, EnvAccessToken: "env-token"}
+	if clearProjectFileBinding(rc, "ws_stale", true) {
+		t.Fatalf("ephemeral env-token identity must never rewrite the project file")
+	}
+	if data := readProjectFileForTest(t, projDir); data.WorkspaceID != "ws_stale" {
+		t.Fatalf("project file must be untouched, got: %+v", data)
 	}
 }

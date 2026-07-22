@@ -363,6 +363,107 @@ func TestWriteProjectFile_RoundTrip(t *testing.T) {
 	assert.Equal(t, config.ProjectFileVersion, read.Data.Version)
 }
 
+// --- Cross-invalidation of stale project-file bindings --------------------
+
+func TestResolveField_FlagOverridesProjectFileULID(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+
+	writeProjectFile(t, tmpDir, config.ProjectFileData{
+		WorkspaceID: "ws_stale",
+		Workspace:   "stale-team",
+		ProjectID:   "pr_stale",
+		Project:     "stale-api",
+	})
+
+	rc, err := config.Resolve(config.ResolveInput{
+		Flags: config.FlagValues{Workspace: "fresh-team"},
+		CWD:   tmpDir,
+	})
+	require.NoError(t, err)
+
+	// The -w override escapes the stale binding: no ULID from the file may
+	// shadow it (ID wins over slug in WorkspaceIdentifier).
+	assert.Equal(t, "fresh-team", rc.WorkspaceIdentifier())
+	assert.Empty(t, rc.WorkspaceID)
+	assert.NotContains(t, rc.Sources, "workspaceId")
+
+	// The dependent project ULID is discarded with it — it is meaningless
+	// under a different workspace. The project slug is not invalidated.
+	assert.Empty(t, rc.ProjectID)
+	assert.NotContains(t, rc.Sources, "projectId")
+	assert.Equal(t, "stale-api", rc.Project)
+	assert.Equal(t, config.SourceProjectFile, rc.Sources["project"])
+}
+
+func TestResolveField_WorkspaceIDFlagOverridesProjectFileSlug(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+
+	writeProjectFile(t, tmpDir, config.ProjectFileData{
+		WorkspaceID: "ws_stale",
+		Workspace:   "stale-team",
+		ProjectID:   "pr_stale",
+	})
+
+	rc, err := config.Resolve(config.ResolveInput{
+		Flags: config.FlagValues{WorkspaceID: "ws_fresh"},
+		CWD:   tmpDir,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "ws_fresh", rc.WorkspaceIdentifier())
+	assert.Empty(t, rc.Workspace)
+	assert.NotContains(t, rc.Sources, "workspace")
+	assert.Empty(t, rc.ProjectID)
+	assert.NotContains(t, rc.Sources, "projectId")
+}
+
+func TestResolveField_InvalidatedFieldFallsThroughToEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+
+	writeProjectFile(t, tmpDir, config.ProjectFileData{WorkspaceID: "ws_stale"})
+
+	rc, err := config.Resolve(config.ResolveInput{
+		Flags: config.FlagValues{Workspace: "fresh-team"},
+		Env:   config.EnvValues{WorkspaceID: "ws_env"},
+		CWD:   tmpDir,
+	})
+	require.NoError(t, err)
+
+	// Invalidation only drops the project-file candidate: the documented
+	// precedence keeps working, so env still supplies the ID level.
+	assert.Equal(t, "ws_env", rc.WorkspaceID)
+	assert.Equal(t, config.SourceEnv, rc.Sources["workspaceId"])
+}
+
+func TestClearWorkspaceBinding_ClearsSiblingsTogetherPreservesRest(t *testing.T) {
+	in := config.ProjectFileData{
+		Version:          config.ProjectFileVersion,
+		WorkspaceID:      "ws_1",
+		Workspace:        "acme",
+		ProjectID:        "pr_1",
+		Project:          "api",
+		Environment:      "staging",
+		PreferredProfile: "work",
+	}
+
+	cleared := config.ClearWorkspaceBinding(in)
+
+	assert.Empty(t, cleared.WorkspaceID)
+	assert.Empty(t, cleared.Workspace)
+	assert.Empty(t, cleared.ProjectID)
+	assert.Empty(t, cleared.Project)
+	assert.Equal(t, config.ProjectFileVersion, cleared.Version)
+	assert.Equal(t, "staging", cleared.Environment)
+	assert.Equal(t, "work", cleared.PreferredProfile)
+
+	// Copy semantics: the input is never mutated.
+	assert.Equal(t, "ws_1", in.WorkspaceID)
+	assert.Equal(t, "api", in.Project)
+}
+
 // --- Bindings -------------------------------------------------------------
 
 func TestBinding_CanonicalizesPath(t *testing.T) {
