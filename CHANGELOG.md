@@ -2,6 +2,19 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.3.0](https://github.com/flagifyhq/cli/releases/tag/v2.3.0) — 2026-07-23
+
+### Features
+
+- **`flagify update` — update the CLI to the latest release from the terminal.** Checks the [GitHub Releases](https://github.com/flagifyhq/cli/releases) API for a newer version and, for **directly-installed** binaries, atomically self-replaces after verifying the download's SHA256 against the release's `checksums.txt` (mandatory, no skip flag). For **package-manager installs** (Homebrew, npm, `go install`) it prints the exact upgrade command and exits — it never runs `brew`/`npm`/`go`/`sudo` for you. Flags: `--check` (report only, never installs, never requires `--yes` or a TTY) and `--force` (reinstall even when already latest); reuses the global `-y/--yes`. No Flagify session or login required — updating the local binary is account-independent. A development build (version reported as `dev`) skips the check entirely.
+
+  > **Deliberate non-TTY deviation:** unlike every other command, `flagify update` requires an explicit `--yes` to install in a non-interactive shell (CI/scripts). Replacing the running binary is irreversible (no automatic rollback), so a silent auto-update in a pipeline is disallowed. `--check` is always safe and never requires `--yes`.
+
+### Documentation
+
+- README and npm README gain a `flagify update` section/row; website CLI reference (`commands.mdx`) adds a full `## flagify update` section with an options table and a `<Callout type="warning">` on the non-TTY `--yes` requirement.
+- Decision log: [`docs/decisions/2026-07-22-cli-update-command.md`](../../docs/decisions/2026-07-22-cli-update-command.md) — install-method heuristic, no-manager-execution, mandatory SHA256, atomic replace, and the non-TTY deviation.
+
 ## [v2.2.0](https://github.com/flagifyhq/cli/releases/tag/v2.2.0) — 2026-07-22
 
 ### Breaking changes
