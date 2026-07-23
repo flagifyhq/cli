@@ -97,6 +97,7 @@ flagify flags toggle my-flag -p <project-id>
 | `flagify config get <key>` | Get a single config value |
 | `flagify completion` | Generate shell completion scripts |
 | `flagify version` | Print CLI version |
+| `flagify update` | Update the CLI to the latest release (`--check` to report only, `--force` to reinstall). Direct installs self-replace after SHA256 verification; Homebrew/npm/`go install` installs print the upgrade command instead. Requires `--yes` to install in non-TTY. |
 
 ## Shell Completions
 

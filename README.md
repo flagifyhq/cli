@@ -818,6 +818,38 @@ flagify version
 # flagify 1.0.0 (abc123)
 ```
 
+### `flagify update`
+
+Update the `flagify` CLI to the latest published release. Checks the [GitHub Releases](https://github.com/flagifyhq/cli/releases) API for a newer version and, for **directly-installed** binaries, atomically self-replaces after verifying the download's SHA256 against `checksums.txt`.
+
+```bash
+flagify update
+```
+
+```bash
+flagify update --check
+```
+
+```bash
+flagify update --force
+```
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Report whether a newer version exists without installing anything (never requires `--yes` or a TTY). |
+| `--force` | Reinstall even when already on the latest version. |
+| `-y`, `--yes` | Skip the interactive confirmation. **Required to install in a non-TTY** (CI/scripts). |
+
+**Package-manager installs are never auto-updated.** If the CLI was installed via Homebrew, npm, or `go install`, `flagify update` prints the exact upgrade command for that manager and exits — it never runs `brew`/`npm`/`go`/`sudo` for you:
+
+```text
+● Installed via Homebrew. Run this to update:
+
+  brew upgrade flagify
+```
+
+> ⚠️ **Irreversible.** For direct installs, `flagify update` replaces the running binary in place with no automatic rollback. Because of that it deviates from the CLI's usual "auto-confirm in non-TTY" behavior: in CI or scripts you must pass `--yes` explicitly to install (`--check` never requires it). A dev build (`version` reported as `dev`) skips the check entirely.
+
 ## Configuration
 
 The CLI stores configuration in `~/.flagify/config.json` under schema v2 (multi-account):
