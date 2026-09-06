@@ -2,13 +2,17 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
-## Unreleased
+## [v2.3.1](https://github.com/flagifyhq/cli/releases/tag/v2.3.1) — 2026-09-06
 
 ### Bug fixes
 
-- **Named profiles now keep independent backend refresh sessions, including when they authenticate the same user on one machine.** Each profile receives a stable cryptographically random device ID on its next login instead of sharing a hostname-derived ID. Existing credentials are not migrated or revoked; a profile without an ID receives one only when it signs in again.
+- **Named profiles now keep independent backend refresh sessions, including when they authenticate the same user on one machine.** Each profile receives a stable cryptographically random device ID on its next login instead of sharing a hostname-derived ID. Existing credentials are not migrated or revoked; a profile without an ID receives one only when it signs in again ([#55](https://github.com/flagifyhq/cli/pull/55)).
 - **Refresh failures now report the actual refresh-session error and the exact profile-specific login command.** Rotated tokens must be saved successfully before the original protected request is retried, preventing a successful request from leaving an unusable token pair on disk.
 - **`flagify auth list` reports meaningful local session states.** Table output shows `active`, `refreshable`, `expired`, `invalid`, or `logged out`; JSON preserves `loggedIn` and adds `status`. This is a local JWT metadata check and does not claim that a server-side session has not been revoked.
+
+### Documentation
+
+- README, npm README, and website CLI authentication/configuration references document per-profile session identity, recovery guidance, and the new local status values.
 
 ## [v2.3.0](https://github.com/flagifyhq/cli/releases/tag/v2.3.0) — 2026-07-23
 
