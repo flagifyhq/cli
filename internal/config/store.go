@@ -29,6 +29,7 @@ type Store struct {
 type Account struct {
 	AccessToken  string    `json:"accessToken,omitempty"`
 	RefreshToken string    `json:"refreshToken,omitempty"`
+	DeviceID     string    `json:"deviceId,omitempty"`
 	APIUrl       string    `json:"apiUrl,omitempty"`
 	ConsoleUrl   string    `json:"consoleUrl,omitempty"`
 	User         *UserInfo `json:"user,omitempty"`

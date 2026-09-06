@@ -16,7 +16,8 @@ type Client struct {
 	httpClient     *http.Client
 	token          string
 	refreshToken   string
-	OnTokenRefresh func(accessToken, refreshToken string)
+	OnTokenRefresh func(accessToken, refreshToken string) error
+	OnRefreshError func(error) error
 }
 
 func NewClient(token string) *Client {
@@ -68,14 +69,32 @@ func (c *Client) do(method, path string, body, result any) error {
 	}
 
 	// If 401 and we have a refresh token, try to refresh and retry once
-	if isUnauthorized(err) && c.refreshToken != "" && c.OnTokenRefresh != nil {
+	if isUnauthorized(err) && c.refreshToken != "" {
 		tokens, refreshErr := c.Refresh(c.refreshToken)
 		if refreshErr != nil {
-			return err // return original error
+			if c.OnRefreshError != nil {
+				if contextualErr := c.OnRefreshError(refreshErr); contextualErr != nil {
+					return contextualErr
+				}
+			}
+			return fmt.Errorf("authentication session refresh failed: %w", refreshErr)
+		}
+		if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+			refreshErr := fmt.Errorf("API returned an incomplete token pair")
+			if c.OnRefreshError != nil {
+				if contextualErr := c.OnRefreshError(refreshErr); contextualErr != nil {
+					return contextualErr
+				}
+			}
+			return fmt.Errorf("authentication session refresh failed: %w", refreshErr)
+		}
+		if c.OnTokenRefresh != nil {
+			if persistErr := c.OnTokenRefresh(tokens.AccessToken, tokens.RefreshToken); persistErr != nil {
+				return fmt.Errorf("failed to persist refreshed authentication session: %w", persistErr)
+			}
 		}
 		c.token = tokens.AccessToken
 		c.refreshToken = tokens.RefreshToken
-		c.OnTokenRefresh(tokens.AccessToken, tokens.RefreshToken)
 		return c.doOnce(method, path, body, result)
 	}
 

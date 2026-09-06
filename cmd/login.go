@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -69,11 +72,24 @@ var authLoginCmd = &cobra.Command{
 // keep using config.Load/Save via the shim — the shim always writes to the
 // active profile, which is the one we just selected.
 func runLogin(cmd *cobra.Command, args []string) error {
-	profile, _ := cmd.Flags().GetString("profile")
-
-	store, err := config.LoadOrMigrate()
+	requestedProfile, _ := cmd.Flags().GetString("profile")
+	profile, cfg, err := prepareLoginProfile(requestedProfile, rand.Reader)
 	if err != nil {
 		return err
+	}
+
+	if err := loginBrowser(cfg); err != nil {
+		return err
+	}
+
+	maybeAdoptProfileForRepo(profile)
+	return nil
+}
+
+func prepareLoginProfile(profile string, random io.Reader) (string, *config.Config, error) {
+	store, err := config.LoadOrMigrate()
+	if err != nil {
+		return "", nil, err
 	}
 
 	if profile == "" {
@@ -86,18 +102,38 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	if _, ok := store.Accounts[profile]; !ok {
 		store.Accounts[profile] = &config.Account{}
 	}
+	if err := ensureProfileDeviceID(store.Accounts[profile], random); err != nil {
+		return "", nil, fmt.Errorf("failed to create profile session identity: %w", err)
+	}
 	store.Current = profile
 	if err := config.SaveStore(store); err != nil {
-		return err
+		return "", nil, err
 	}
 
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return "", nil, err
+	}
+	return profile, cfg, nil
+}
 
-	if err := loginBrowser(cfg); err != nil {
+const profileDeviceIDBytes = 16
+
+// ensureProfileDeviceID assigns one stable, opaque session identity to a local
+// profile. The value is deliberately unrelated to the hostname and profile
+// name so two profiles for the same user map to independent backend sessions.
+func ensureProfileDeviceID(account *config.Account, random io.Reader) error {
+	if account == nil {
+		return fmt.Errorf("nil profile")
+	}
+	if account.DeviceID != "" {
+		return nil
+	}
+	bytes := make([]byte, profileDeviceIDBytes)
+	if _, err := io.ReadFull(random, bytes); err != nil {
 		return err
 	}
-
-	maybeAdoptProfileForRepo(profile)
+	account.DeviceID = "cli-" + hex.EncodeToString(bytes)
 	return nil
 }
 
@@ -302,8 +338,9 @@ func runBrowserAttempt(ctx context.Context, consoleURL, deviceID string) attempt
 }
 
 func loginBrowser(cfg *config.Config) error {
-	hostname, _ := os.Hostname()
-	deviceID := "cli-" + hostname
+	if cfg.DeviceID == "" {
+		return fmt.Errorf("profile session identity is missing")
+	}
 	consoleURL := resolveConsoleURL(cfg)
 
 	// One outer timeout bounds the whole flow across all attempts.
@@ -316,7 +353,7 @@ func loginBrowser(cfg *config.Config) error {
 	}
 
 	accessToken, refreshToken, err := runLoginLoop(attempts, func(int) attemptOutcome {
-		return runBrowserAttempt(ctx, consoleURL, deviceID)
+		return runBrowserAttempt(ctx, consoleURL, cfg.DeviceID)
 	})
 	if err != nil {
 		return err

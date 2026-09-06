@@ -136,6 +136,10 @@ flagify auth whoami                      # alias of `flagify whoami`
 
 Profiles are local to each machine. The names are yours — `work`, `personal`, `client-acme`, whatever fits. A repo committing a `.flagify/project.json` can hint at a preferred profile name, but it is never required.
 
+Each profile receives its own opaque backend session identity the next time that profile signs in. This keeps two profiles for the same Flagify user independently refreshable. Existing profiles are not logged out or rewritten automatically; if an older profile's refresh session has already expired or been replaced, run `flagify auth login --profile <name>` once after upgrading.
+
+`flagify auth list` classifies locally stored tokens as `active`, `refreshable`, `expired`, `invalid`, or `logged out`. JSON output preserves `loggedIn` and also includes `status`. These states come from local token type and expiry metadata; a locally active token can still have been revoked by the server. When automatic refresh fails, the CLI returns the refresh cause and the exact login command for the affected profile.
+
 ### Binding a repo to a profile
 
 When you clone a repo that already has `.flagify/project.json`, the CLI needs to know which local profile to use. If the committed `preferredProfile` hint matches one of your profiles, it is picked automatically. Otherwise, bind explicitly:
@@ -862,6 +866,7 @@ The CLI stores configuration in `~/.flagify/config.json` under schema v2 (multi-
     "work": {
       "accessToken": "eyJhbGci...",
       "refreshToken": "eyJhbGci...",
+      "deviceId": "cli-8a3f...",
       "apiUrl": "https://api.flagify.dev",
       "consoleUrl": "https://console.flagify.dev",
       "user": { "id": "...", "email": "jane@acme.com", "name": "Jane Doe" },
@@ -885,7 +890,7 @@ The CLI stores configuration in `~/.flagify/config.json` under schema v2 (multi-
 |-----------------|-------------|
 | `version` | Schema version (currently `2`) |
 | `current` | Name of the active profile |
-| `accounts[<name>]` | One entry per signed-in identity; `defaults` mirrors the old flat scope fields |
+| `accounts[<name>]` | One entry per signed-in identity; `deviceId` isolates its refresh session and `defaults` mirrors the old flat scope fields |
 | `bindings[<path>]` | Local repo → profile mapping, written by `flagify project bind` |
 
 > **Migration from v1**: the first time a v2-aware CLI runs against an older flat `~/.flagify/config.json`, it migrates in place and writes a `.bak` alongside. Re-running does not re-migrate. Existing automation that wrote to the flat shape keeps working — the CLI projects the active profile as the flat view internally.

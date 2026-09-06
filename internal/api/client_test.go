@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -134,9 +135,10 @@ func TestClientAutoRefreshOn401(t *testing.T) {
 	client := api.NewClient("expired-token")
 	client.SetBaseURL(server.URL)
 	client.SetRefreshToken("valid-refresh")
-	client.OnTokenRefresh = func(access, refresh string) {
+	client.OnTokenRefresh = func(access, refresh string) error {
 		savedAccess = access
 		savedRefresh = refresh
+		return nil
 	}
 
 	var result map[string]string
@@ -145,6 +147,7 @@ func TestClientAutoRefreshOn401(t *testing.T) {
 	assert.Equal(t, "ok", result["status"])
 	assert.Equal(t, "new-access", savedAccess)
 	assert.Equal(t, "new-refresh", savedRefresh)
+	assert.Equal(t, 2, callCount)
 }
 
 func TestClientNoRefreshOnAuthEndpoints(t *testing.T) {
@@ -162,8 +165,9 @@ func TestClientNoRefreshOnAuthEndpoints(t *testing.T) {
 	client := api.NewClient("bad-token")
 	client.SetBaseURL(server.URL)
 	// No refresh token set — should not attempt refresh
-	client.OnTokenRefresh = func(access, refresh string) {
+	client.OnTokenRefresh = func(access, refresh string) error {
 		refreshCalled = true
+		return nil
 	}
 
 	var result map[string]string
@@ -172,13 +176,19 @@ func TestClientNoRefreshOnAuthEndpoints(t *testing.T) {
 	assert.False(t, refreshCalled)
 }
 
-func TestClientRefreshFailsFallsBack(t *testing.T) {
+func TestClientRefreshFailureReturnsRefreshError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
+		code := "access_expired"
+		message := "access token expired"
+		if r.URL.Path == "/v1/auth/refresh" {
+			code = "session_revoked"
+			message = "refresh session revoked"
+		}
 		json.NewEncoder(w).Encode(map[string]string{
-			"code":    "unauthorized",
-			"message": "token expired",
+			"code":    code,
+			"message": message,
 		})
 	}))
 	defer server.Close()
@@ -186,12 +196,49 @@ func TestClientRefreshFailsFallsBack(t *testing.T) {
 	client := api.NewClient("expired-token")
 	client.SetBaseURL(server.URL)
 	client.SetRefreshToken("also-expired")
-	client.OnTokenRefresh = func(access, refresh string) {}
 
 	var result map[string]string
 	err := client.Get("/v1/test", &result)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unauthorized")
+	assert.Contains(t, err.Error(), "session_revoked")
+	assert.NotContains(t, err.Error(), "access_expired")
+}
+
+func TestClientDoesNotRetryProtectedRequestWhenRefreshPersistenceFails(t *testing.T) {
+	protectedCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/auth/refresh" {
+			json.NewEncoder(w).Encode(api.TokenPair{
+				AccessToken:  "rotated-access",
+				RefreshToken: "rotated-refresh",
+			})
+			return
+		}
+		protectedCalls++
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"code":    "access_expired",
+			"message": "access token expired",
+		})
+	}))
+	defer server.Close()
+
+	client := api.NewClient("expired-access")
+	client.SetBaseURL(server.URL)
+	client.SetRefreshToken("valid-refresh")
+	client.OnTokenRefresh = func(access, refresh string) error {
+		assert.Equal(t, "rotated-access", access)
+		assert.Equal(t, "rotated-refresh", refresh)
+		return errors.New("disk full")
+	}
+
+	var result map[string]string
+	err := client.Get("/v1/test", &result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to persist refreshed authentication session")
+	assert.Contains(t, err.Error(), "disk full")
+	assert.Equal(t, 1, protectedCalls)
 }
 
 func TestClientListWorkspaces(t *testing.T) {

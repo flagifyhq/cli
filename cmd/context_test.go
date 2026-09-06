@@ -115,7 +115,9 @@ func TestGetClientFromResolved_RefreshCallbackUpdatesCapturedProfile(t *testing.
 	}
 
 	// Fire the refresh.
-	client.OnTokenRefresh("wt-new", "wr-new")
+	if err := client.OnTokenRefresh("wt-new", "wr-new"); err != nil {
+		t.Fatalf("persist refreshed tokens: %v", err)
+	}
 
 	after := loadStoreForTest(t)
 	if after.Accounts["work"].AccessToken != "wt-new" {
@@ -129,9 +131,9 @@ func TestGetClientFromResolved_RefreshCallbackUpdatesCapturedProfile(t *testing.
 	}
 }
 
-func TestGetClientFromResolved_RefreshOnDeletedProfileIsNoOp(t *testing.T) {
-	// Profile removed concurrently. Refresh callback must return silently — no
-	// resurrected ghost profile in the store afterwards.
+func TestGetClientFromResolved_RefreshOnDeletedProfileFails(t *testing.T) {
+	// Profile removed concurrently. The callback must surface the persistence
+	// failure and must not resurrect a ghost profile.
 	seedStore(t, &config.Store{
 		Version:  config.StoreVersion,
 		Current:  "personal",
@@ -146,7 +148,13 @@ func TestGetClientFromResolved_RefreshOnDeletedProfileIsNoOp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	client.OnTokenRefresh("wt-new", "wr-new")
+	persistErr := client.OnTokenRefresh("wt-new", "wr-new")
+	if persistErr == nil || !strings.Contains(persistErr.Error(), "no longer exists") {
+		t.Fatalf("expected deleted-profile error, got %v", persistErr)
+	}
+	if !strings.Contains(persistErr.Error(), "flagify auth login --profile 'work'") {
+		t.Fatalf("expected profile-specific login command, got %v", persistErr)
+	}
 
 	after := loadStoreForTest(t)
 	if _, resurrected := after.Accounts["work"]; resurrected {
@@ -154,6 +162,50 @@ func TestGetClientFromResolved_RefreshOnDeletedProfileIsNoOp(t *testing.T) {
 	}
 	if after.Accounts["personal"].AccessToken != "pt" {
 		t.Fatalf("sibling profile must be untouched")
+	}
+}
+
+func TestGetClientFromResolved_RefreshFailureIncludesProfileRecovery(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		code := "access_expired"
+		message := "access token expired"
+		if r.URL.Path == "/v1/auth/refresh" {
+			code = "session_revoked"
+			message = "session has been revoked"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message})
+	}))
+	defer server.Close()
+
+	client, err := getClientFromResolved(&config.ResolvedConfig{
+		Profile: "client acme",
+		APIUrl:  server.URL,
+		Account: &config.Account{AccessToken: "expired-access", RefreshToken: "revoked-refresh"},
+	})
+	if err != nil {
+		t.Fatalf("build client: %v", err)
+	}
+
+	var result map[string]string
+	err = client.Get("/v1/test", &result)
+	if err == nil {
+		t.Fatal("expected refresh failure")
+	}
+	if !strings.Contains(err.Error(), "session_revoked") {
+		t.Fatalf("expected refresh cause, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "flagify auth login --profile 'client acme'") {
+		t.Fatalf("expected profile-specific recovery command, got %v", err)
+	}
+}
+
+func TestProfileLoginCommandShellQuotesProfile(t *testing.T) {
+	got := profileLoginCommand("work's profile")
+	want := `flagify auth login --profile 'work'"'"'s profile'`
+	if got != want {
+		t.Fatalf("unexpected login command: got %q, want %q", got, want)
 	}
 }
 

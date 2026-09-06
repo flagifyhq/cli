@@ -12,6 +12,7 @@ import (
 type Config struct {
 	AccessToken  string `json:"accessToken,omitempty"`
 	RefreshToken string `json:"refreshToken,omitempty"`
+	DeviceID     string `json:"deviceId,omitempty"`
 	APIUrl       string `json:"apiUrl,omitempty"`
 	ConsoleUrl   string `json:"consoleUrl,omitempty"`
 	Workspace    string `json:"workspace,omitempty"`
@@ -95,6 +96,7 @@ func Save(cfg *Config) error {
 	}
 	acc.AccessToken = token
 	acc.RefreshToken = cfg.RefreshToken
+	acc.DeviceID = cfg.DeviceID
 	acc.APIUrl = cfg.APIUrl
 	acc.ConsoleUrl = cfg.ConsoleUrl
 	acc.Defaults.Workspace = cfg.Workspace
@@ -122,6 +124,7 @@ func configFromStore(s *Store) *Config {
 	return &Config{
 		AccessToken:  acc.AccessToken,
 		RefreshToken: acc.RefreshToken,
+		DeviceID:     acc.DeviceID,
 		APIUrl:       acc.APIUrl,
 		ConsoleUrl:   acc.ConsoleUrl,
 		Workspace:    acc.Defaults.Workspace,

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
@@ -34,6 +35,7 @@ var authListCmd = &cobra.Command{
 
 		headers := []string{"", "PROFILE", "EMAIL", "SCOPE", "STATUS"}
 		rows := make([][]string, 0, len(store.Accounts))
+		now := time.Now()
 		for _, name := range sortedAccountNames(store.Accounts) {
 			acc := store.Accounts[name]
 			marker := " "
@@ -44,10 +46,7 @@ var authListCmd = &cobra.Command{
 			if acc.User != nil && acc.User.Email != "" {
 				email = acc.User.Email
 			}
-			status := ui.Green("logged in")
-			if acc.AccessToken == "" {
-				status = ui.Dim("logged out")
-			}
+			status := renderAuthStatus(config.AccountAuthStatus(acc, now))
 			rows = append(rows, []string{marker, name, email, formatScope(acc.Defaults), status})
 		}
 		fmt.Println(ui.Table(headers, rows))
@@ -232,13 +231,16 @@ type profileView struct {
 	Project     string `json:"project,omitempty"`
 	Environment string `json:"environment,omitempty"`
 	LoggedIn    bool   `json:"loggedIn"`
+	Status      string `json:"status"`
 }
 
 func profileViewList(store *config.Store) []profileView {
 	names := sortedAccountNames(store.Accounts)
 	out := make([]profileView, 0, len(names))
+	now := time.Now()
 	for _, n := range names {
 		acc := store.Accounts[n]
+		status := config.AccountAuthStatus(acc, now)
 		pv := profileView{
 			Name:        n,
 			Current:     n == store.Current,
@@ -246,7 +248,8 @@ func profileViewList(store *config.Store) []profileView {
 			Workspace:   acc.Defaults.Workspace,
 			Project:     acc.Defaults.Project,
 			Environment: acc.Defaults.Environment,
-			LoggedIn:    acc.AccessToken != "",
+			LoggedIn:    status == config.AuthStatusActive || status == config.AuthStatusRefreshable,
+			Status:      string(status),
 		}
 		if acc.User != nil {
 			pv.Email = acc.User.Email
@@ -254,6 +257,21 @@ func profileViewList(store *config.Store) []profileView {
 		out = append(out, pv)
 	}
 	return out
+}
+
+func renderAuthStatus(status config.AuthStatus) string {
+	switch status {
+	case config.AuthStatusActive:
+		return ui.Green(string(status))
+	case config.AuthStatusRefreshable:
+		return ui.Cyan(string(status))
+	case config.AuthStatusExpired:
+		return ui.Warn(string(status))
+	case config.AuthStatusInvalid:
+		return ui.Red(string(status))
+	default:
+		return ui.Dim("logged out")
+	}
 }
 
 func sortedAccountNames(m map[string]*config.Account) []string {

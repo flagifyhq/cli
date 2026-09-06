@@ -239,24 +239,46 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 	if rc.Account.RefreshToken != "" {
 		client.SetRefreshToken(rc.Account.RefreshToken)
 		profile := rc.Profile
-		client.OnTokenRefresh = func(access, refresh string) {
+		withLoginGuidance := func(refreshErr error) error {
+			return fmt.Errorf(
+				"authentication session for profile %q requires login: %w; run %s",
+				profile,
+				refreshErr,
+				profileLoginCommand(profile),
+			)
+		}
+		client.OnRefreshError = func(refreshErr error) error {
+			return withLoginGuidance(refreshErr)
+		}
+		client.OnTokenRefresh = func(access, refresh string) error {
 			// Reload before writing so concurrent writes to sibling profiles are preserved.
 			store, err := config.LoadStore()
 			if err != nil {
-				return
+				return withLoginGuidance(err)
 			}
 			acc, ok := store.Accounts[profile]
 			if !ok {
 				// Profile was removed or renamed mid-flight; don't resurrect it.
-				return
+				return withLoginGuidance(fmt.Errorf("profile %q no longer exists", profile))
 			}
 			acc.AccessToken = access
 			acc.RefreshToken = refresh
-			_ = config.SaveStore(store)
+			if err := config.SaveStore(store); err != nil {
+				return withLoginGuidance(fmt.Errorf("save profile %q: %w", profile, err))
+			}
+			return nil
 		}
 	}
 
 	return client, nil
+}
+
+func profileLoginCommand(profile string) string {
+	return "flagify auth login --profile " + shellQuote(profile)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 // handleAccessError is the backstop behind the preventive membership guard:
