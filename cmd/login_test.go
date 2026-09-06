@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -8,6 +9,74 @@ import (
 
 	"github.com/flagifyhq/cli/internal/config"
 )
+
+func TestEnsureProfileDeviceID(t *testing.T) {
+	work := &config.Account{}
+	personal := &config.Account{}
+
+	if err := ensureProfileDeviceID(work, bytes.NewReader(bytes.Repeat([]byte{0x11}, profileDeviceIDBytes))); err != nil {
+		t.Fatalf("generate work device ID: %v", err)
+	}
+	if err := ensureProfileDeviceID(personal, bytes.NewReader(bytes.Repeat([]byte{0x22}, profileDeviceIDBytes))); err != nil {
+		t.Fatalf("generate personal device ID: %v", err)
+	}
+	if work.DeviceID == personal.DeviceID {
+		t.Fatalf("profiles must receive distinct device IDs: %q", work.DeviceID)
+	}
+	if len(work.DeviceID) != len("cli-")+profileDeviceIDBytes*2 {
+		t.Fatalf("unexpected device ID length: %q", work.DeviceID)
+	}
+
+	existing := work.DeviceID
+	if err := ensureProfileDeviceID(work, bytes.NewReader(nil)); err != nil {
+		t.Fatalf("existing device ID must be reused without reading randomness: %v", err)
+	}
+	if work.DeviceID != existing {
+		t.Fatalf("existing device ID changed: got %q, want %q", work.DeviceID, existing)
+	}
+}
+
+func TestEnsureProfileDeviceIDRejectsInvalidInputs(t *testing.T) {
+	if err := ensureProfileDeviceID(nil, bytes.NewReader(nil)); err == nil {
+		t.Fatal("expected nil profile error")
+	}
+	account := &config.Account{}
+	if err := ensureProfileDeviceID(account, bytes.NewReader([]byte{0x01})); err == nil {
+		t.Fatal("expected insufficient randomness error")
+	}
+	if account.DeviceID != "" {
+		t.Fatalf("failed generation must not assign a partial ID: %q", account.DeviceID)
+	}
+}
+
+func TestPrepareLoginProfilePersistsLegacyDeviceIDBeforeAuthorization(t *testing.T) {
+	seedStore(t, &config.Store{
+		Version: config.StoreVersion,
+		Current: "personal",
+		Accounts: map[string]*config.Account{
+			"work":     {AccessToken: "legacy-access"},
+			"personal": {},
+		},
+	})
+	randomBytes := bytes.Repeat([]byte{0x33}, profileDeviceIDBytes)
+
+	profile, cfg, err := prepareLoginProfile("work", bytes.NewReader(randomBytes))
+	if err != nil {
+		t.Fatalf("prepare login profile: %v", err)
+	}
+	if profile != "work" {
+		t.Fatalf("unexpected profile: %q", profile)
+	}
+	wantDeviceID := "cli-33333333333333333333333333333333"
+	if cfg.DeviceID != wantDeviceID {
+		t.Fatalf("prepared config device ID: got %q, want %q", cfg.DeviceID, wantDeviceID)
+	}
+
+	store := loadStoreForTest(t)
+	if store.Current != "work" || store.Accounts["work"].DeviceID != wantDeviceID {
+		t.Fatalf("device ID must be persisted before browser authorization: %+v", store)
+	}
+}
 
 // scriptedAttempts returns a per-attempt function that yields the given outcomes
 // in order and records how many times it was invoked.

@@ -22,6 +22,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	cfg := &config.Config{
 		AccessToken:  "test-access",
 		RefreshToken: "test-refresh",
+		DeviceID:     "cli-test-device",
 		APIUrl:       "http://localhost:7070",
 		Workspace:    "ws-123",
 		Project:      "my-project",
@@ -39,6 +40,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test-access", loaded.AccessToken)
 	assert.Equal(t, "test-refresh", loaded.RefreshToken)
+	assert.Equal(t, "cli-test-device", loaded.DeviceID)
 	assert.Equal(t, "http://localhost:7070", loaded.APIUrl)
 	assert.Equal(t, "ws-123", loaded.Workspace)
 	assert.Equal(t, "my-project", loaded.Project)
@@ -113,6 +115,7 @@ func TestStoreRoundTripV2(t *testing.T) {
 			"work": {
 				AccessToken:  "wt",
 				RefreshToken: "wr",
+				DeviceID:     "cli-work-device",
 				APIUrl:       "https://api.flagify.dev",
 				User:         &config.UserInfo{ID: "u1", Email: "mario@acme.com", Name: "Mario"},
 				Defaults: config.Defaults{
@@ -142,6 +145,7 @@ func TestStoreRoundTripV2(t *testing.T) {
 	require.Contains(t, out.Accounts, "work")
 	require.Contains(t, out.Accounts, "personal")
 	assert.Equal(t, "wt", out.Accounts["work"].AccessToken)
+	assert.Equal(t, "cli-work-device", out.Accounts["work"].DeviceID)
 	assert.Equal(t, "pr_1", out.Accounts["work"].Defaults.ProjectID)
 	assert.Equal(t, "mario@acme.com", out.Accounts["work"].User.Email)
 	assert.Equal(t, "work", out.Bindings["/Users/mario/dev/acme-api"].Profile)
@@ -154,7 +158,7 @@ func TestLoadOrMigrateV1(t *testing.T) {
 	dir := filepath.Join(tmpDir, ".flagify")
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	path := filepath.Join(dir, "config.json")
-	raw := `{"accessToken":"tk","refreshToken":"rt","apiUrl":"http://localhost:7070","workspace":"acme","workspaceId":"ws_1","project":"api","projectId":"pr_1","environment":"staging"}`
+	raw := `{"accessToken":"tk","refreshToken":"rt","deviceId":"cli-legacy-device","apiUrl":"http://localhost:7070","workspace":"acme","workspaceId":"ws_1","project":"api","projectId":"pr_1","environment":"staging"}`
 	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
 
 	store, err := config.LoadOrMigrate()
@@ -166,6 +170,7 @@ func TestLoadOrMigrateV1(t *testing.T) {
 	require.NotNil(t, acc)
 	assert.Equal(t, "tk", acc.AccessToken)
 	assert.Equal(t, "rt", acc.RefreshToken)
+	assert.Equal(t, "cli-legacy-device", acc.DeviceID)
 	assert.Equal(t, "http://localhost:7070", acc.APIUrl)
 	assert.Equal(t, "acme", acc.Defaults.Workspace)
 	assert.Equal(t, "ws_1", acc.Defaults.WorkspaceID)

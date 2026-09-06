@@ -1,13 +1,24 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/flagifyhq/cli/internal/config"
 )
+
+func commandTestToken(t *testing.T, tokenType string, expiration time.Time) string {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{"type": tokenType, "exp": expiration.Unix()})
+	if err != nil {
+		t.Fatalf("marshal token payload: %v", err)
+	}
+	return "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
+}
 
 // seedStore writes a v2 store with the given shape under a fresh temp HOME and
 // returns the home path. Callers never rely on HOME outside the test body.
@@ -57,11 +68,12 @@ func TestAuthList_Empty(t *testing.T) {
 
 func TestAuthList_JSON(t *testing.T) {
 	resetAuthFlags(t)
+	activeAccess := commandTestToken(t, "access", time.Now().Add(time.Hour))
 	seedStore(t, &config.Store{
 		Version: config.StoreVersion,
 		Current: "work",
 		Accounts: map[string]*config.Account{
-			"work":     {AccessToken: "wt", User: &config.UserInfo{Email: "mario@acme.com"}},
+			"work":     {AccessToken: activeAccess, User: &config.UserInfo{Email: "mario@acme.com"}},
 			"personal": {}, // logged out
 		},
 	})
@@ -91,8 +103,36 @@ func TestAuthList_JSON(t *testing.T) {
 	if views[0].LoggedIn {
 		t.Fatalf("personal must be logged out")
 	}
+	if views[0].Status != string(config.AuthStatusLoggedOut) {
+		t.Fatalf("personal status wrong: %+v", views[0])
+	}
 	if !views[1].LoggedIn || !views[1].Current || views[1].Email != "mario@acme.com" {
 		t.Fatalf("work row wrong: %+v", views[1])
+	}
+	if views[1].Status != string(config.AuthStatusActive) {
+		t.Fatalf("work status wrong: %+v", views[1])
+	}
+}
+
+func TestProfileViewListReportsExpiredProfileLoggedOut(t *testing.T) {
+	now := time.Now()
+	store := &config.Store{
+		Version: config.StoreVersion,
+		Current: "work",
+		Accounts: map[string]*config.Account{
+			"work": {
+				AccessToken:  commandTestToken(t, "access", now.Add(-time.Minute)),
+				RefreshToken: commandTestToken(t, "refresh", now.Add(-time.Minute)),
+			},
+		},
+	}
+
+	views := profileViewList(store)
+	if len(views) != 1 {
+		t.Fatalf("expected one profile, got %d", len(views))
+	}
+	if views[0].LoggedIn || views[0].Status != string(config.AuthStatusExpired) {
+		t.Fatalf("expired profile reported incorrectly: %+v", views[0])
 	}
 }
 

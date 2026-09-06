@@ -23,6 +23,7 @@ func migrateV1ToV2(v1 *Config) *Store {
 	acc := &Account{
 		AccessToken:  token,
 		RefreshToken: v1.RefreshToken,
+		DeviceID:     v1.DeviceID,
 		APIUrl:       v1.APIUrl,
 		ConsoleUrl:   v1.ConsoleUrl,
 		Defaults: Defaults{
@@ -42,6 +43,7 @@ func v1IsEmpty(v1 *Config) bool {
 	return v1.AccessToken == "" &&
 		v1.RefreshToken == "" &&
 		v1.Token == "" &&
+		v1.DeviceID == "" &&
 		v1.APIUrl == "" &&
 		v1.ConsoleUrl == "" &&
 		v1.Workspace == "" &&

@@ -55,7 +55,7 @@ flagify flags toggle my-flag -p <project-id>
 |---------|-------------|
 | `flagify auth login` | Sign in with the browser flow (`--profile <name>` to add a second identity without signing out of the first). If the current repo has a `.flagify/project.json` whose `preferredProfile` points elsewhere, the CLI prompts (TTY only) to rewrite the pin to the profile you just authenticated. If the browser comes back without tokens (expired session / interrupted flow), the CLI auto-reopens the flow on a TTY (up to 3 attempts); non-TTY runs get a single actionable error. |
 | `flagify auth logout` | Sign out of the active profile (`--profile <name>` or `--all`) |
-| `flagify auth list` | List signed-in profiles (`--format json`) |
+| `flagify auth list` | List profiles with local session state: active, refreshable, expired, invalid, or logged out (`--format json` preserves `loggedIn` and adds `status`) |
 | `flagify auth switch <name>` | Set the active profile |
 | `flagify auth remove <name>` | Delete a profile and any repo bindings that point to it |
 | `flagify auth rename <old> <new>` | Rename a profile and update bindings |
@@ -119,6 +119,8 @@ flagify completion fish > ~/.config/fish/completions/flagify.fish
 ## Configuration
 
 Credentials live under named profiles in `~/.flagify/config.json` (schema v2, migrated automatically from any older flat file with a `.bak` preserved alongside).
+
+On its next login, each profile receives a stable opaque device ID so profiles for the same Flagify user keep independent refresh sessions. Existing credentials are not rewritten or revoked automatically. If an older profile can no longer refresh, reauthenticate only that profile with `flagify auth login --profile <name>`. Refresh failures identify the affected profile and return the server's refresh-session cause.
 
 Scope is resolved per-invocation. Precedence, highest first:
 
