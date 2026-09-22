@@ -326,3 +326,88 @@ func TestAdoptCandidate_WalksUpFromSubdir(t *testing.T) {
 		t.Fatalf("unexpected data: %+v", got.Data)
 	}
 }
+
+// fakeEnv installs a controlled environment and OS for headless detection.
+func fakeEnv(t *testing.T, goos string, vars map[string]string) {
+	t.Helper()
+	originalLookup, originalGOOS := envLookup, currentGOOS
+	envLookup = func(key string) (string, bool) {
+		value, ok := vars[key]
+		return value, ok
+	}
+	currentGOOS = goos
+	t.Cleanup(func() {
+		envLookup = originalLookup
+		currentGOOS = originalGOOS
+	})
+}
+
+func TestSelectLoginFlow(t *testing.T) {
+	sshNotice := "SSH session detected — using device login (pass --browser to force the browser flow)."
+	displayNotice := "No display detected — using device login (pass --browser to force the browser flow)."
+
+	cases := []struct {
+		name       string
+		goos       string
+		env        map[string]string
+		device     bool
+		browser    bool
+		wantDevice bool
+		wantNotice string
+	}{
+		{name: "desktop linux with DISPLAY uses browser", goos: "linux", env: map[string]string{"DISPLAY": ":0"}},
+		{name: "wayland linux uses browser", goos: "linux", env: map[string]string{"WAYLAND_DISPLAY": "wayland-0"}},
+		{name: "macOS without display vars uses browser", goos: "darwin"},
+		{name: "windows without display vars uses browser", goos: "windows"},
+		{name: "SSH_CONNECTION switches to device", goos: "darwin", env: map[string]string{"SSH_CONNECTION": "1.2.3.4 22 5.6.7.8 22"}, wantDevice: true, wantNotice: sshNotice},
+		{name: "SSH_TTY switches to device even with DISPLAY", goos: "linux", env: map[string]string{"SSH_TTY": "/dev/pts/0", "DISPLAY": ":0"}, wantDevice: true, wantNotice: sshNotice},
+		{name: "empty SSH vars are ignored", goos: "linux", env: map[string]string{"SSH_TTY": "", "DISPLAY": ":0"}},
+		{name: "headless linux switches to device", goos: "linux", wantDevice: true, wantNotice: displayNotice},
+		{name: "--device forces device without notice", goos: "darwin", device: true, wantDevice: true},
+		{name: "--browser overrides SSH detection", goos: "linux", env: map[string]string{"SSH_TTY": "/dev/pts/0"}, browser: true},
+		{name: "--browser overrides headless detection", goos: "linux", browser: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeEnv(t, tc.goos, tc.env)
+
+			useDevice, notice, err := selectLoginFlow(tc.device, tc.browser)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if useDevice != tc.wantDevice || notice != tc.wantNotice {
+				t.Fatalf("got device=%v notice=%q, want device=%v notice=%q", useDevice, notice, tc.wantDevice, tc.wantNotice)
+			}
+		})
+	}
+}
+
+func TestRunLogin_DeviceAndBrowserConflictTouchesNothing(t *testing.T) {
+	for _, deviceFlag := range []string{"device", "no-browser"} {
+		t.Run(deviceFlag, func(t *testing.T) {
+			resetAuthFlags(t)
+			t.Cleanup(func() {
+				authLoginCmd.Flags().Set("device", "false")
+				authLoginCmd.Flags().Set("no-browser", "false")
+				authLoginCmd.Flags().Set("browser", "false")
+			})
+			// An unreachable API proves no network call is attempted.
+			seedStore(t, &config.Store{
+				Version:  config.StoreVersion,
+				Current:  "work",
+				Accounts: map[string]*config.Account{"work": {APIUrl: "http://127.0.0.1:1"}},
+			})
+			before := readConfigBytes(t)
+
+			authLoginCmd.Flags().Set(deviceFlag, "true")
+			authLoginCmd.Flags().Set("browser", "true")
+			err := runLogin(authLoginCmd, nil)
+			if err == nil || err.Error() != "mutually exclusive flags: --device/--no-browser and --browser" {
+				t.Fatalf("expected mutually exclusive flags error, got %v", err)
+			}
+			if string(readConfigBytes(t)) != string(before) {
+				t.Fatal("conflicting flags must fail before any config change")
+			}
+		})
+	}
+}
