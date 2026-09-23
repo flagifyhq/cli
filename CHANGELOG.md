@@ -2,6 +2,40 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
+## [v2.4.0](https://github.com/flagifyhq/cli/releases/tag/v2.4.0) — 2026-09-23
+
+### Features
+
+- **`flagify auth login` now works over SSH and on headless machines, via the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).** The browser flow needs the browser to reach a `localhost` callback on the machine running the CLI, which never happens over SSH — the callback lands on the laptop and the login hung until the 5-minute timeout. The device flow instead prints a one-time code and a console URL you open **on any other device**, then polls until you approve:
+
+  ```
+  ⚠ First copy your one-time code: BCDF-GHJK
+  → Open https://console.flagify.dev/device on any device
+    (or: https://console.flagify.dev/device?code=BCDF-GHJK)
+  → Waiting for authorization… (expires in 10 min, Ctrl-C to cancel)
+  ✓ Authenticated as jane@acme.com on device build-box
+  ```
+
+  The code expires after 10 minutes and works once. `Ctrl-C` exits with status 130, and credentials are written only after the console approves. In a non-interactive shell the code and URLs go to stderr, so a script capturing stdout gets no informational text ([#57](https://github.com/flagifyhq/cli/pull/57)).
+- **New flags on `flagify auth login`: `--device` (alias `--no-browser`) and `--browser`.** `--device` forces the device flow anywhere; `--browser` forces the existing loopback flow even on a detected headless session. Passing both fails with a mutually-exclusive-flags error before any config change or network request.
+
+### Improvements
+
+- **Headless sessions now pick the device flow by default.** With no explicit flag, `flagify auth login` switches to the device flow when `SSH_CONNECTION` or `SSH_TTY` is set, or on Linux when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, and prints which flow it chose. macOS, Windows, and desktop Linux keep the browser flow unchanged. The choice is re-evaluated on every invocation — nothing is remembered.
+
+  > This is the only change to default flow selection. The browser flow itself is untouched: same messages, same 5-minute timeout, same bounded reopen attempts. `--browser` always forces it.
+
+- **The device flow reuses the profile's own session identity**, so approving a device login for one profile never displaces another profile's refresh session on the same machine (the isolation added in v2.3.1). `--profile` behaves identically in both flows.
+
+### Documentation
+
+- README and npm README document the flags, the headless auto-detection and the sample output; the website CLI reference (`commands.mdx`) gains a `#### Device flow (SSH / headless)` section and rows for the three flags, and `overview.mdx` mentions the automatic switch.
+- Decision log: [`docs/decisions/2026-09-21-cli-device-auth-rfc8628.md`](../../docs/decisions/2026-09-21-cli-device-auth-rfc8628.md) — RFC 8628 error envelope scoped to the poll endpoint, atomic single-use token issuance, anti-enumeration 404, headless auto-detection as the only default change, rate-limit sizing, and the open questions.
+
+### Requires
+
+- Flagify API with `/v1/auth/device/*` (deployed 2026-09-23) and console `/device`. Older CLIs are unaffected and keep using the browser flow.
+
 ## [v2.3.1](https://github.com/flagifyhq/cli/releases/tag/v2.3.1) — 2026-09-06
 
 ### Bug fixes
