@@ -103,6 +103,28 @@ If you log into a profile from a directory that already has a `.flagify/project.
 
 If the browser flow comes back without tokens — typically an expired console session or a flow you closed before authorizing — the CLI no longer exits on the first try. On a TTY it reopens the browser automatically (up to 3 attempts), printing a message between attempts, so you can re-authenticate in the same `flagify auth login` run. In non-interactive contexts it does not loop: it prints a single actionable error. The overall 5-minute timeout bounds the whole flow, and no partial credentials are written if every attempt fails.
 
+#### Logging in over SSH or on a headless machine
+
+The browser flow needs the browser to reach a `localhost` callback on the machine running the CLI, which never works over SSH. For those sessions the CLI uses the OAuth 2.0 device authorization flow (RFC 8628): it prints a one-time code and a URL you open **on any other device** (laptop, phone) where you can sign in to the console.
+
+```bash
+flagify auth login --device        # force the device flow (alias: --no-browser)
+flagify auth login --browser       # force the browser flow, even over SSH
+```
+
+With no flag, the CLI switches to the device flow automatically when `SSH_CONNECTION` or `SSH_TTY` is set, or on Linux when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, and says so. macOS and Windows desktops keep the browser flow. `--device`/`--no-browser` and `--browser` are mutually exclusive.
+
+```
+● SSH session detected — using device login (pass --browser to force the browser flow).
+⚠ First copy your one-time code: BCDF-GHJK
+→ Open https://console.flagify.dev/device on any device
+  (or: https://console.flagify.dev/device?code=BCDF-GHJK)
+→ Waiting for authorization… (expires in 10 min, Ctrl-C to cancel)
+✓ Authenticated as jane@acme.com on device build-box
+```
+
+Approve (or deny) the request in the console after checking the hostname. The code expires after 10 minutes. `Ctrl-C` exits with status 130, and credentials are written only after a successful approval. In non-interactive shells the code and URL go to stderr so scripts capturing stdout get no informational text.
+
 ### `flagify whoami`
 
 Show the currently resolved user and which profile the invocation is using.

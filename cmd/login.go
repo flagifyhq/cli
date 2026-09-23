@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -68,22 +69,82 @@ var authLoginCmd = &cobra.Command{
 }
 
 // runLogin materializes the target profile as current before entering the
-// browser flow. This way existing helpers (loginBrowser, maybeAutoSelect) can
-// keep using config.Load/Save via the shim — the shim always writes to the
-// active profile, which is the one we just selected.
+// selected login flow (browser or device). This way existing helpers
+// (loginBrowser, loginDevice, maybeAutoSelect) can keep using config.Load/Save
+// via the shim — the shim always writes to the active profile, which is the
+// one we just selected.
 func runLogin(cmd *cobra.Command, args []string) error {
+	device, _ := cmd.Flags().GetBool("device")
+	noBrowser, _ := cmd.Flags().GetBool("no-browser")
+	browserFlag, _ := cmd.Flags().GetBool("browser")
+	useDevice, notice, err := selectLoginFlow(device || noBrowser, browserFlag)
+	if err != nil {
+		return err
+	}
+
 	requestedProfile, _ := cmd.Flags().GetString("profile")
 	profile, cfg, err := prepareLoginProfile(requestedProfile, rand.Reader)
 	if err != nil {
 		return err
 	}
 
-	if err := loginBrowser(cfg); err != nil {
+	if notice != "" {
+		fmt.Println(ui.Info(notice))
+	}
+	if useDevice {
+		err = loginDevice(cfg)
+	} else {
+		err = loginBrowser(cfg)
+	}
+	if err != nil {
 		return err
 	}
 
 	maybeAdoptProfileForRepo(profile)
 	return nil
+}
+
+// envLookup and currentGOOS are seams so headless detection is testable
+// without a real SSH session or OS.
+var (
+	envLookup   = os.LookupEnv
+	currentGOOS = runtime.GOOS
+)
+
+// selectLoginFlow resolves which login flow to run. Explicit flags win and are
+// mutually exclusive; with none, a detected headless session switches to the
+// device flow and returns the notice to print. Pure — it runs before any
+// config or network access.
+func selectLoginFlow(device, browser bool) (useDevice bool, notice string, err error) {
+	if device && browser {
+		return false, "", errors.New("mutually exclusive flags: --device/--no-browser and --browser")
+	}
+	if device {
+		return true, "", nil
+	}
+	if browser {
+		return false, "", nil
+	}
+	useDevice, notice = shouldDefaultToDeviceFlow()
+	return useDevice, notice, nil
+}
+
+// shouldDefaultToDeviceFlow reports whether this session cannot receive the
+// browser flow's localhost callback: an SSH session, or Linux without a
+// display. macOS and Windows never auto-switch.
+func shouldDefaultToDeviceFlow() (bool, string) {
+	if isEnvSet("SSH_CONNECTION") || isEnvSet("SSH_TTY") {
+		return true, "SSH session detected — using device login (pass --browser to force the browser flow)."
+	}
+	if currentGOOS == "linux" && !isEnvSet("DISPLAY") && !isEnvSet("WAYLAND_DISPLAY") {
+		return true, "No display detected — using device login (pass --browser to force the browser flow)."
+	}
+	return false, ""
+}
+
+func isEnvSet(key string) bool {
+	value, ok := envLookup(key)
+	return ok && value != ""
 }
 
 func prepareLoginProfile(profile string, random io.Reader) (string, *config.Config, error) {
@@ -379,6 +440,9 @@ func loginBrowser(cfg *config.Config) error {
 
 func init() {
 	authLoginCmd.Flags().String("profile", "", "Profile to create or update (defaults to current, or 'default')")
+	authLoginCmd.Flags().Bool("device", false, "Use the OAuth device authorization flow (no local browser callback needed)")
+	authLoginCmd.Flags().Bool("no-browser", false, "Alias for --device")
+	authLoginCmd.Flags().Bool("browser", false, "Force the browser-based login flow, even on a detected headless session")
 
 	authCmd.AddCommand(authLoginCmd)
 }
