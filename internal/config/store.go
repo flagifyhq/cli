@@ -81,7 +81,26 @@ func LoadStore() (*Store, error) {
 
 // LoadOrMigrate reads the store, migrating a v1 file in place (with backup) on first
 // access. This is the entry point for CLI commands; MCP and pure readers use LoadStore.
+//
+// Migration writes, so the read and the write happen under the config lock.
+// Callers that intend to mutate the store must use UpdateStore instead: loading
+// here and saving later is a read-modify-write across two critical sections,
+// which is how a concurrent process's token rotation gets overwritten.
 func LoadOrMigrate() (*Store, error) {
+	var store *Store
+	err := WithLock(func() error {
+		s, err := loadOrMigrateLocked()
+		store = s
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// loadOrMigrateLocked is LoadOrMigrate's body. The caller must hold the lock.
+func loadOrMigrateLocked() (*Store, error) {
 	path, err := Path()
 	if err != nil {
 		return nil, err
@@ -120,15 +139,27 @@ func LoadOrMigrate() (*Store, error) {
 		}
 	}
 
-	if err := SaveStore(store); err != nil {
+	if err := saveStoreLocked(store); err != nil {
 		return nil, fmt.Errorf("failed to write migrated config: %w", err)
 	}
 
 	return store, nil
 }
 
-// SaveStore writes the store atomically with 0600 on the file and 0700 on the dir.
+// SaveStore writes the store atomically and durably, under the config lock.
+//
+// It is safe for a caller that owns the whole store value (a fresh login, a
+// wholesale rewrite). It is NOT a substitute for UpdateStore when the store was
+// read earlier in the command: the file is rewritten whole, so a stale snapshot
+// silently reverts whatever another process persisted in the meantime.
 func SaveStore(s *Store) error {
+	return WithLock(func() error { return saveStoreLocked(s) })
+}
+
+// saveStoreLocked writes the store atomically with 0600 on the file and 0700 on
+// the dir, fsyncing the payload and the directory entry before returning. The
+// caller must hold the config lock.
+func saveStoreLocked(s *Store) error {
 	if s == nil {
 		return fmt.Errorf("nil store")
 	}
@@ -171,6 +202,14 @@ func SaveStore(s *Store) error {
 		tmp.Close()
 		return err
 	}
+	// Durability, not concurrency: without this the rename can land before the
+	// payload reaches disk, so a power loss can leave an empty or stale config
+	// even though the write returned successfully. It is unrelated to the
+	// lost-update race the lock fixes.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
@@ -178,6 +217,12 @@ func SaveStore(s *Store) error {
 		return err
 	}
 	writeOK = true
+
+	// Persist the directory entry too, so the rename itself survives a crash.
+	if dirFile, err := os.Open(dir); err == nil {
+		_ = dirFile.Sync()
+		_ = dirFile.Close()
+	}
 	return nil
 }
 

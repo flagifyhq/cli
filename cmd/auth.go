@@ -60,20 +60,23 @@ var authSwitchCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		store, err := config.LoadOrMigrate()
-		if err != nil {
+		alreadyActive := false
+		if err := config.UpdateStore(func(store *config.Store) error {
+			if _, ok := store.Accounts[name]; !ok {
+				return fmt.Errorf("profile %q not found. Run 'flagify auth list' to see available profiles", name)
+			}
+			if store.Current == name {
+				alreadyActive = true
+				return config.ErrNoChange
+			}
+			store.Current = name
+			return nil
+		}); err != nil {
 			return err
 		}
-		if _, ok := store.Accounts[name]; !ok {
-			return fmt.Errorf("profile %q not found. Run 'flagify auth list' to see available profiles", name)
-		}
-		if store.Current == name {
+		if alreadyActive {
 			fmt.Println(ui.Info(fmt.Sprintf("Profile %s is already active.", ui.Bold(name))))
 			return nil
-		}
-		store.Current = name
-		if err := config.SaveStore(store); err != nil {
-			return err
 		}
 		fmt.Println(ui.Success(fmt.Sprintf("Switched to profile %s", ui.Bold(name))))
 		return nil
@@ -106,6 +109,7 @@ var authRemoveCmd = &cobra.Command{
 			return fmt.Errorf("profile %q not found", name)
 		}
 
+		// Prompt outside the lock — never hold it while waiting for a human.
 		confirmed, err := ui.Confirm(
 			fmt.Sprintf("Remove profile %s? This deletes tokens and defaults locally.", ui.Bold(name)),
 			yes,
@@ -118,12 +122,18 @@ var authRemoveCmd = &cobra.Command{
 			return nil
 		}
 
-		delete(store.Accounts, name)
-		removed := config.PurgeBindingsForProfile(store, name)
-		if store.Current == name {
-			store.Current = firstAccountName(store.Accounts)
-		}
-		if err := config.SaveStore(store); err != nil {
+		var removed int
+		if err := config.UpdateStore(func(store *config.Store) error {
+			if _, ok := store.Accounts[name]; !ok {
+				return fmt.Errorf("profile %q not found", name)
+			}
+			delete(store.Accounts, name)
+			removed = config.PurgeBindingsForProfile(store, name)
+			if store.Current == name {
+				store.Current = firstAccountName(store.Accounts)
+			}
+			return nil
+		}); err != nil {
 			return err
 		}
 
@@ -146,29 +156,27 @@ var authRenameCmd = &cobra.Command{
 			return nil
 		}
 
-		store, err := config.LoadOrMigrate()
-		if err != nil {
-			return err
-		}
-		acc, ok := store.Accounts[oldName]
-		if !ok {
-			return fmt.Errorf("profile %q not found", oldName)
-		}
-		if _, exists := store.Accounts[newName]; exists {
-			return fmt.Errorf("profile %q already exists", newName)
-		}
-
-		store.Accounts[newName] = acc
-		delete(store.Accounts, oldName)
-		if store.Current == oldName {
-			store.Current = newName
-		}
-		for path, b := range store.Bindings {
-			if b.Profile == oldName {
-				store.Bindings[path] = config.Binding{Profile: newName}
+		if err := config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[oldName]
+			if !ok {
+				return fmt.Errorf("profile %q not found", oldName)
 			}
-		}
-		if err := config.SaveStore(store); err != nil {
+			if _, exists := store.Accounts[newName]; exists {
+				return fmt.Errorf("profile %q already exists", newName)
+			}
+
+			store.Accounts[newName] = acc
+			delete(store.Accounts, oldName)
+			if store.Current == oldName {
+				store.Current = newName
+			}
+			for path, b := range store.Bindings {
+				if b.Profile == oldName {
+					store.Bindings[path] = config.Binding{Profile: newName}
+				}
+			}
+			return nil
+		}); err != nil {
 			return err
 		}
 
@@ -180,43 +188,52 @@ var authRenameCmd = &cobra.Command{
 // runLogout signs out the selected profile. profile==""/all==false means "the
 // current profile". all==true wins.
 func runLogout(profile string, all bool) error {
-	store, err := config.LoadOrMigrate()
-	if err != nil {
-		return err
-	}
-
 	if all {
-		if len(store.Accounts) == 0 {
+		empty := false
+		if err := config.UpdateStore(func(store *config.Store) error {
+			if len(store.Accounts) == 0 {
+				empty = true
+				return config.ErrNoChange
+			}
+			for _, acc := range store.Accounts {
+				acc.AccessToken = ""
+				acc.RefreshToken = ""
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		if empty {
 			fmt.Println(ui.Info("No profiles to log out of."))
 			return nil
-		}
-		for _, acc := range store.Accounts {
-			acc.AccessToken = ""
-			acc.RefreshToken = ""
-		}
-		if err := config.SaveStore(store); err != nil {
-			return err
 		}
 		fmt.Println(ui.Success("Logged out of every profile."))
 		return nil
 	}
 
 	target := profile
-	if target == "" {
-		target = store.Current
+	noProfile := false
+	if err := config.UpdateStore(func(store *config.Store) error {
+		if target == "" {
+			target = store.Current
+		}
+		if target == "" {
+			noProfile = true
+			return config.ErrNoChange
+		}
+		acc, ok := store.Accounts[target]
+		if !ok {
+			return fmt.Errorf("profile %q not found", target)
+		}
+		acc.AccessToken = ""
+		acc.RefreshToken = ""
+		return nil
+	}); err != nil {
+		return err
 	}
-	if target == "" {
+	if noProfile {
 		fmt.Println(ui.Info("No profile is currently active. Nothing to do."))
 		return nil
-	}
-	acc, ok := store.Accounts[target]
-	if !ok {
-		return fmt.Errorf("profile %q not found", target)
-	}
-	acc.AccessToken = ""
-	acc.RefreshToken = ""
-	if err := config.SaveStore(store); err != nil {
-		return err
 	}
 	fmt.Println(ui.Success(fmt.Sprintf("Logged out of profile %s", ui.Bold(target))))
 	return nil

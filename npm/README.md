@@ -118,7 +118,7 @@ flagify completion fish > ~/.config/fish/completions/flagify.fish
 
 ## Configuration
 
-Credentials live under named profiles in `~/.flagify/config.json` (schema v2, migrated automatically from any older flat file with a `.bak` preserved alongside).
+Credentials live under named profiles in `~/.flagify/config.json` (schema v2, migrated automatically from any older flat file with a `.bak` preserved alongside). Concurrent `flagify` processes are safe: every write takes a short exclusive lock on the sibling `~/.flagify/config.lock`, and token refresh is serialized through it so one invocation cannot revert another's rotated session.
 
 On its next login, each profile receives a stable opaque device ID so profiles for the same Flagify user keep independent refresh sessions. Existing credentials are not rewritten or revoked automatically. If an older profile can no longer refresh, reauthenticate only that profile with `flagify auth login --profile <name>`. Refresh failures identify the affected profile and return the server's refresh-session cause.
 

@@ -251,22 +251,65 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 			return withLoginGuidance(refreshErr)
 		}
 		client.OnTokenRefresh = func(access, refresh string) error {
-			// Reload before writing so concurrent writes to sibling profiles are preserved.
-			store, err := config.LoadStore()
-			if err != nil {
+			persist := func(store *config.Store) error {
+				acc, ok := store.Accounts[profile]
+				if !ok {
+					// Profile was removed or renamed mid-flight; don't resurrect it.
+					return fmt.Errorf("profile %q no longer exists", profile)
+				}
+				acc.AccessToken = access
+				acc.RefreshToken = refresh
+				return nil
+			}
+			if err := config.UpdateStore(persist); err != nil {
 				return withLoginGuidance(err)
 			}
-			acc, ok := store.Accounts[profile]
-			if !ok {
-				// Profile was removed or renamed mid-flight; don't resurrect it.
-				return withLoginGuidance(fmt.Errorf("profile %q no longer exists", profile))
-			}
-			acc.AccessToken = access
-			acc.RefreshToken = refresh
-			if err := config.SaveStore(store); err != nil {
-				return withLoginGuidance(fmt.Errorf("save profile %q: %w", profile, err))
-			}
 			return nil
+		}
+
+		// The API rotates the refresh token on every refresh and keeps a single
+		// session row per (user, device), so two invocations of this profile
+		// share one single-use token. Doing the whole check-exchange-persist
+		// sequence inside the config lock makes the refresh single-flight across
+		// processes: the first invocation rotates, and the ones behind it find
+		// the new pair already on disk and adopt it instead of presenting a
+		// superseded token and being told the session was revoked.
+		client.RefreshSession = func(current string, exchange func(string) (*api.TokenPair, error)) (*api.TokenPair, error) {
+			var tokens *api.TokenPair
+			err := config.UpdateStore(func(store *config.Store) error {
+				acc, ok := store.Accounts[profile]
+				if !ok {
+					return fmt.Errorf("profile %q no longer exists", profile)
+				}
+				if acc.RefreshToken == "" {
+					return fmt.Errorf("profile %q has no refresh token", profile)
+				}
+
+				// Another process already rotated this session while we were
+				// waiting for the lock. Its pair is the live one; ours is dead.
+				if acc.RefreshToken != current {
+					tokens = &api.TokenPair{
+						AccessToken:  acc.AccessToken,
+						RefreshToken: acc.RefreshToken,
+					}
+					return nil
+				}
+
+				// We own the rotation. Exchange the token that is actually on
+				// disk, never a snapshot taken earlier in this command.
+				fresh, err := exchange(acc.RefreshToken)
+				if err != nil {
+					return err
+				}
+				acc.AccessToken = fresh.AccessToken
+				acc.RefreshToken = fresh.RefreshToken
+				tokens = fresh
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return tokens, nil
 		}
 	}
 
@@ -299,15 +342,17 @@ func handleAccessError(err error, rc *config.ResolvedConfig) error {
 
 	clearedStore := false
 	if rc != nil && rc.Profile != "" && rc.EnvAccessToken == "" {
-		store, loadErr := config.LoadStore()
-		if loadErr == nil {
-			if acc, ok := store.Accounts[rc.Profile]; ok {
-				acc.Defaults = config.Defaults{}
-				if config.SaveStore(store) == nil {
-					clearedStore = true
-				}
+		found := false
+		updateErr := config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[rc.Profile]
+			if !ok {
+				return config.ErrNoChange
 			}
-		}
+			acc.Defaults = config.Defaults{}
+			found = true
+			return nil
+		})
+		clearedStore = found && updateErr == nil
 	}
 
 	fileStale := rc != nil && rc.EnvAccessToken == "" &&

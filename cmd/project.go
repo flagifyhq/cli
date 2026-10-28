@@ -23,14 +23,6 @@ var projectBindCmd = &cobra.Command{
 			return fmt.Errorf("--profile is required — run 'flagify auth list' to see local profiles")
 		}
 
-		store, err := config.LoadOrMigrate()
-		if err != nil {
-			return err
-		}
-		if _, ok := store.Accounts[profile]; !ok {
-			return fmt.Errorf("profile %q not found. Run 'flagify auth login --profile %s' first", profile, profile)
-		}
-
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -45,10 +37,12 @@ var projectBindCmd = &cobra.Command{
 			bindDir = pf.Dir
 		}
 
-		if err := config.BindProfile(store, bindDir, profile); err != nil {
-			return err
-		}
-		if err := config.SaveStore(store); err != nil {
+		if err := config.UpdateStore(func(store *config.Store) error {
+			if _, ok := store.Accounts[profile]; !ok {
+				return fmt.Errorf("profile %q not found. Run 'flagify auth login --profile %s' first", profile, profile)
+			}
+			return config.BindProfile(store, bindDir, profile)
+		}); err != nil {
 			return err
 		}
 

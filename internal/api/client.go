@@ -18,7 +18,29 @@ type Client struct {
 	refreshToken   string
 	OnTokenRefresh func(accessToken, refreshToken string) error
 	OnRefreshError func(error) error
+
+	// RefreshSession, when set, owns the entire refresh step: deciding whether
+	// this invocation should refresh at all, performing the exchange, and
+	// persisting the result — all of it serialized against other processes.
+	//
+	// It exists because the API's refresh token is single-use and rotated on
+	// every refresh, with one session row per (user, device). Several CLI
+	// invocations share that row, so whichever process refreshes second with a
+	// superseded token is told the session was revoked. The hook gets the token
+	// this client currently holds and may instead return the pair another
+	// process already rotated to, in which case no exchange happens at all.
+	//
+	// `exchange` performs the actual POST /v1/auth/refresh. When the hook is
+	// nil (ephemeral env-token identities), the client refreshes directly and
+	// persists through OnTokenRefresh, as before.
+	RefreshSession func(current string, exchange func(string) (*TokenPair, error)) (*TokenPair, error)
 }
+
+// maxRefreshAttempts bounds the 401 recovery loop. Two attempts is what the
+// rotation race needs: the first can adopt the pair another process persisted,
+// and if that access token is itself already expired the second performs a real
+// exchange. More than that would mean the session is genuinely unusable.
+const maxRefreshAttempts = 2
 
 func NewClient(token string) *Client {
 	return &Client{
@@ -68,9 +90,15 @@ func (c *Client) do(method, path string, body, result any) error {
 		return nil
 	}
 
-	// If 401 and we have a refresh token, try to refresh and retry once
-	if isUnauthorized(err) && c.refreshToken != "" {
-		tokens, refreshErr := c.Refresh(c.refreshToken)
+	// On 401, recover the session before giving up. Another process may have
+	// rotated the shared refresh token already, in which case the fix is to
+	// adopt its pair rather than to ask the user to log in again.
+	for attempt := 0; attempt < maxRefreshAttempts; attempt++ {
+		if !isUnauthorized(err) || c.refreshToken == "" {
+			return err
+		}
+
+		tokens, refreshErr := c.refreshSession()
 		if refreshErr != nil {
 			if c.OnRefreshError != nil {
 				if contextualErr := c.OnRefreshError(refreshErr); contextualErr != nil {
@@ -79,26 +107,69 @@ func (c *Client) do(method, path string, body, result any) error {
 			}
 			return fmt.Errorf("authentication session refresh failed: %w", refreshErr)
 		}
-		if tokens.AccessToken == "" || tokens.RefreshToken == "" {
-			refreshErr := fmt.Errorf("API returned an incomplete token pair")
-			if c.OnRefreshError != nil {
-				if contextualErr := c.OnRefreshError(refreshErr); contextualErr != nil {
-					return contextualErr
-				}
-			}
-			return fmt.Errorf("authentication session refresh failed: %w", refreshErr)
+
+		// Nothing new to try: the credentials we just got back are the ones
+		// that already failed, so retrying would only repeat the 401.
+		if tokens.AccessToken == c.token && tokens.RefreshToken == c.refreshToken {
+			return err
 		}
-		if c.OnTokenRefresh != nil {
-			if persistErr := c.OnTokenRefresh(tokens.AccessToken, tokens.RefreshToken); persistErr != nil {
-				return fmt.Errorf("failed to persist refreshed authentication session: %w", persistErr)
-			}
-		}
+
 		c.token = tokens.AccessToken
 		c.refreshToken = tokens.RefreshToken
-		return c.doOnce(method, path, body, result)
+		err = c.doOnce(method, path, body, result)
+		if err == nil {
+			return nil
+		}
 	}
 
 	return err
+}
+
+// refreshSession obtains a usable token pair, delegating to RefreshSession when
+// the caller provided one so the check-exchange-persist sequence is serialized
+// across processes. The returned pair is always complete.
+func (c *Client) refreshSession() (*TokenPair, error) {
+	refresh := func(current string) (*TokenPair, error) {
+		tokens, err := c.Refresh(current)
+		if err != nil {
+			return nil, err
+		}
+		if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+			return nil, fmt.Errorf("API returned an incomplete token pair")
+		}
+		if c.OnTokenRefresh != nil {
+			if persistErr := c.OnTokenRefresh(tokens.AccessToken, tokens.RefreshToken); persistErr != nil {
+				return nil, fmt.Errorf("failed to persist refreshed authentication session: %w", persistErr)
+			}
+		}
+		return tokens, nil
+	}
+
+	if c.RefreshSession == nil {
+		return refresh(c.refreshToken)
+	}
+
+	// The hook persists on its own (it holds the config lock while doing it),
+	// so the exchange it is handed must not persist a second time.
+	exchange := func(current string) (*TokenPair, error) {
+		tokens, err := c.Refresh(current)
+		if err != nil {
+			return nil, err
+		}
+		if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+			return nil, fmt.Errorf("API returned an incomplete token pair")
+		}
+		return tokens, nil
+	}
+
+	tokens, err := c.RefreshSession(c.refreshToken, exchange)
+	if err != nil {
+		return nil, err
+	}
+	if tokens == nil || tokens.AccessToken == "" || tokens.RefreshToken == "" {
+		return nil, fmt.Errorf("refreshed session is missing a token pair")
+	}
+	return tokens, nil
 }
 
 func (c *Client) doOnce(method, path string, body, result any) error {
@@ -223,10 +294,10 @@ func (c *Client) GetMe() (*UserMe, error) {
 // Workspaces
 
 type Workspace struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Slug     string `json:"slug"`
-	Plan     string `json:"plan"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+	Plan string `json:"plan"`
 }
 
 func (c *Client) ListWorkspaces() ([]Workspace, error) {
@@ -336,7 +407,6 @@ func (c *Client) ToggleFlagByKey(projectID, flagKey, envKey string, enabled bool
 		"enabled": enabled,
 	}, nil)
 }
-
 
 // Segments
 
@@ -501,11 +571,11 @@ func (c *Client) GetFlagHealth(projectID string) ([]HealthIssue, error) {
 // Webhooks
 
 type Webhook struct {
-	ID            string     `json:"id"`
-	ProjectID     string     `json:"projectId"`
-	EnvironmentID string     `json:"environmentId"`
-	Name          string     `json:"name"`
-	URL           string     `json:"url"`
+	ID            string `json:"id"`
+	ProjectID     string `json:"projectId"`
+	EnvironmentID string `json:"environmentId"`
+	Name          string `json:"name"`
+	URL           string `json:"url"`
 	// Returned only on Create — subsequent reads omit the field.
 	Secret     string     `json:"secret,omitempty"`
 	Events     []string   `json:"events"`

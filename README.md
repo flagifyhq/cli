@@ -173,6 +173,12 @@ flagify project bind --profile work
 
 Bindings are stored under `bindings` in `~/.flagify/config.json` keyed by the absolute repo path. They are never committed.
 
+### Concurrent invocations
+
+Several `flagify` processes can share one config safely — editors, CI steps and agent sessions often run at once. Every write to `~/.flagify/config.json` happens inside a short exclusive lock on `~/.flagify/config.lock`, so a process that is saving a default never reverts a token another process refreshed in the meantime. The lock file is a sibling of the store, holds no data, and is created on demand; delete it only if no `flagify` process is running.
+
+Token refresh is serialized through that same lock. The API rotates the refresh token on every refresh, so the first invocation to notice an expired access token performs the exchange and the others adopt the pair it persisted instead of presenting a superseded token.
+
 ### How the CLI picks a profile
 
 Precedence when several signals could choose a profile, highest first:
