@@ -179,6 +179,17 @@ func TestGetClientFromResolved_RefreshFailureIncludesProfileRecovery(t *testing.
 	}))
 	defer server.Close()
 
+	// The profile is logged in locally; it is the server that revoked the
+	// session. Refreshing now reads the token from the store, so the profile
+	// has to be there for the server's cause to be the one that surfaces.
+	seedStore(t, &config.Store{
+		Version: config.StoreVersion,
+		Current: "client acme",
+		Accounts: map[string]*config.Account{
+			"client acme": {AccessToken: "expired-access", RefreshToken: "revoked-refresh"},
+		},
+	})
+
 	client, err := getClientFromResolved(&config.ResolvedConfig{
 		Profile: "client acme",
 		APIUrl:  server.URL,

@@ -27,8 +27,11 @@ const (
 )
 
 type localTokenClaims struct {
-	Type string `json:"type"`
-	Exp  int64  `json:"exp"`
+	Type     string `json:"type"`
+	Exp      int64  `json:"exp"`
+	ID       string `json:"jti"`
+	UserID   string `json:"uid"`
+	DeviceID string `json:"did"`
 }
 
 // AccountAuthStatus classifies only locally inspectable token metadata. It does
@@ -65,11 +68,31 @@ func inspectLocalToken(token, expectedType string, now time.Time) localTokenStat
 		return localTokenInvalid
 	}
 	var claims localTokenClaims
-	if err := json.Unmarshal(payload, &claims); err != nil || claims.Type != expectedType || claims.Exp <= 0 {
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return localTokenInvalid
+	}
+	if expectedType == "refresh" && claims.Type == "cli_refresh" && claims.Exp == 0 && claims.ID != "" && claims.UserID != "" && claims.DeviceID != "" {
+		return localTokenActive
+	}
+	if claims.Type != expectedType || claims.Exp <= 0 {
 		return localTokenInvalid
 	}
 	if claims.Exp <= now.Unix() {
 		return localTokenExpired
 	}
 	return localTokenActive
+}
+
+// IsPersistentCredential inspects metadata only, never server validity.
+func IsPersistentCredential(token string) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+	var claims localTokenClaims
+	return json.Unmarshal(payload, &claims) == nil && claims.Type == "cli_refresh"
 }

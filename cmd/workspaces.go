@@ -67,17 +67,17 @@ var workspacesPickCmd = &cobra.Command{
 			return err
 		}
 
-		store, err := config.LoadStore()
-		if err != nil {
-			return err
-		}
-		acc, ok := store.Accounts[rc.Profile]
-		if !ok {
-			return fmt.Errorf("profile %q not found in local store", rc.Profile)
-		}
-		acc.Defaults.Workspace = ws.Slug
-		acc.Defaults.WorkspaceID = ws.ID
-		if err := config.SaveStore(store); err != nil {
+		// One locked transaction after the picker, touching only the defaults,
+		// so a token rotation by a concurrent invocation is not reverted.
+		if err := config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[rc.Profile]
+			if !ok {
+				return fmt.Errorf("profile %q not found in local store", rc.Profile)
+			}
+			acc.Defaults.Workspace = ws.Slug
+			acc.Defaults.WorkspaceID = ws.ID
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
