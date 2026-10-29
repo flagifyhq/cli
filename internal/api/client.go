@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://api.flagify.dev"
+// DefaultBaseURL is the API endpoint used when a profile has no override.
+const DefaultBaseURL = "https://api.flagify.dev"
 
 type Client struct {
 	baseURL        string
@@ -33,7 +34,7 @@ type Client struct {
 	// `exchange` performs the actual POST /v1/auth/refresh. When the hook is
 	// nil (ephemeral env-token identities), the client refreshes directly and
 	// persists through OnTokenRefresh, as before.
-	RefreshSession func(current string, exchange func(string) (*TokenPair, error)) (*TokenPair, error)
+	RefreshSession func(currentAccess, currentRefresh string, exchange func(string) (*TokenPair, error)) (*TokenPair, error)
 }
 
 // maxRefreshAttempts bounds the 401 recovery loop. Two attempts is what the
@@ -44,7 +45,7 @@ const maxRefreshAttempts = 2
 
 func NewClient(token string) *Client {
 	return &Client{
-		baseURL: defaultBaseURL,
+		baseURL: DefaultBaseURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -162,7 +163,7 @@ func (c *Client) refreshSession() (*TokenPair, error) {
 		return tokens, nil
 	}
 
-	tokens, err := c.RefreshSession(c.refreshToken, exchange)
+	tokens, err := c.RefreshSession(c.token, c.refreshToken, exchange)
 	if err != nil {
 		return nil, err
 	}

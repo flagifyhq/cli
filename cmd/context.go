@@ -237,6 +237,8 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 	}
 
 	if rc.Account.RefreshToken != "" {
+		// Pin a value snapshot. A profile name can be reused by a concurrent login.
+		profileIdentity := *rc.Account
 		client.SetRefreshToken(rc.Account.RefreshToken)
 		profile := rc.Profile
 		withLoginGuidance := func(refreshErr error) error {
@@ -274,7 +276,7 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 		// processes: the first invocation rotates, and the ones behind it find
 		// the new pair already on disk and adopt it instead of presenting a
 		// superseded token and being told the session was revoked.
-		client.RefreshSession = func(current string, exchange func(string) (*api.TokenPair, error)) (*api.TokenPair, error) {
+		client.RefreshSession = func(currentAccess, currentRefresh string, exchange func(string) (*api.TokenPair, error)) (*api.TokenPair, error) {
 			var tokens *api.TokenPair
 			err := config.UpdateStore(func(store *config.Store) error {
 				acc, ok := store.Accounts[profile]
@@ -284,15 +286,18 @@ func getClientFromResolved(rc *config.ResolvedConfig) (*api.Client, error) {
 				if acc.RefreshToken == "" {
 					return fmt.Errorf("profile %q has no refresh token", profile)
 				}
+				if !sameProfileSession(&profileIdentity, acc) {
+					return fmt.Errorf("profile %q changed account, device or API server; restart this command", profile)
+				}
 
 				// Another process already rotated this session while we were
 				// waiting for the lock. Its pair is the live one; ours is dead.
-				if acc.RefreshToken != current {
+				if acc.RefreshToken != currentRefresh || acc.AccessToken != currentAccess {
 					tokens = &api.TokenPair{
 						AccessToken:  acc.AccessToken,
 						RefreshToken: acc.RefreshToken,
 					}
-					return nil
+					return config.ErrNoChange
 				}
 
 				// We own the rotation. Exchange the token that is actually on

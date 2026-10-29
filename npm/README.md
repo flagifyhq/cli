@@ -149,7 +149,7 @@ MIT
 Sign in once per Flagify account and API server, using a profile such as `personal`.
 Reuse that profile from every project folder for the account. Each folder selects
 its own workspace, project and environment through `.flagify/project.json`; use
-`flagify project bind personal` for a local profile binding. Different Flagify
+`flagify project bind --profile personal` for a local profile binding. Different Flagify
 accounts must keep separate profiles. `flagify status` shows the resolved context;
 `flagify whoami` checks authentication with the server.
 

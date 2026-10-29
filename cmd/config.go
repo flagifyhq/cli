@@ -101,6 +101,11 @@ var configSetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value := args[1]
+		switch key {
+		case "api-url", "console-url", "workspace", "project", "environment":
+		default:
+			return fmt.Errorf("unknown config key %q. Valid keys: api-url, console-url, workspace, project, environment", key)
+		}
 
 		// Change only the requested field, inside one locked transaction. Going
 		// through the flat Config shim here would write back the tokens this
@@ -110,7 +115,17 @@ var configSetCmd = &cobra.Command{
 		if err := config.UpdateStore(func(store *config.Store) error {
 			acc := store.ActiveAccount()
 			if acc == nil {
-				return fmt.Errorf("no active profile — run 'flagify auth login' first")
+				if store.Current == "" {
+					store.Current = config.DefaultProfile
+				}
+				if store.Accounts == nil {
+					store.Accounts = make(map[string]*config.Account)
+				}
+				acc = store.Accounts[store.Current]
+				if acc == nil {
+					acc = &config.Account{}
+					store.Accounts[store.Current] = acc
+				}
 			}
 			switch key {
 			case "api-url":

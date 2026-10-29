@@ -49,7 +49,7 @@ func newRotatingSessionServer(t *testing.T, access, refresh string) (*httptest.S
 		state.generation++
 		state.rotations++
 		state.access = fmt.Sprintf("access-gen%d", state.generation)
-		state.refresh = fmt.Sprintf("refresh-gen%d", state.generation)
+		state.refresh = testRefreshIdentity("u1", "test-device", fmt.Sprintf("gen%d", state.generation))
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"accessToken":  state.access,
 			"refreshToken": state.refresh,
@@ -91,13 +91,13 @@ func (s *rotatingSessionServer) snapshot() (rotations, revoked int) {
 // perfectly valid pair sat in config.json, which is why running the same
 // command a minute later worked without anyone logging in.
 func TestSecondInvocationAdoptsRotatedSessionInsteadOfFailing(t *testing.T) {
-	srv, state := newRotatingSessionServer(t, "access-gen0", "refresh-gen0")
+	srv, state := newRotatingSessionServer(t, "access-gen0", testRefreshIdentity("u1", "test-device", "gen0"))
 
 	seedStore(t, &config.Store{
 		Version: config.StoreVersion,
 		Current: "cdr",
 		Accounts: map[string]*config.Account{
-			"cdr": {AccessToken: "access-expired", RefreshToken: "refresh-gen0", APIUrl: srv.URL},
+			"cdr": {AccessToken: "access-expired", RefreshToken: testRefreshIdentity("u1", "test-device", "gen0"), APIUrl: srv.URL},
 		},
 	})
 
@@ -108,7 +108,7 @@ func TestSecondInvocationAdoptsRotatedSessionInsteadOfFailing(t *testing.T) {
 			APIUrl:  srv.URL,
 			Account: &config.Account{
 				AccessToken:  "access-expired",
-				RefreshToken: "refresh-gen0",
+				RefreshToken: testRefreshIdentity("u1", "test-device", "gen0"),
 				APIUrl:       srv.URL,
 			},
 		}
@@ -139,7 +139,7 @@ func TestSecondInvocationAdoptsRotatedSessionInsteadOfFailing(t *testing.T) {
 	}
 
 	stored := loadStoreForTest(t)
-	if stored.Accounts["cdr"].RefreshToken != "refresh-gen1" {
+	if stored.Accounts["cdr"].RefreshToken != testRefreshIdentity("u1", "test-device", "gen1") {
 		t.Fatalf("store does not hold the live pair: %q", stored.Accounts["cdr"].RefreshToken)
 	}
 }
@@ -149,14 +149,14 @@ func TestSecondInvocationAdoptsRotatedSessionInsteadOfFailing(t *testing.T) {
 // (another invocation rotated it long enough ago). Adopting is not enough, so
 // the invocation must go on to perform the exchange itself.
 func TestInvocationRefreshesWhenAdoptedAccessTokenIsAlsoStale(t *testing.T) {
-	srv, state := newRotatingSessionServer(t, "access-gen2", "refresh-gen2")
+	srv, state := newRotatingSessionServer(t, "access-gen2", testRefreshIdentity("u1", "test-device", "gen2"))
 
 	seedStore(t, &config.Store{
 		Version: config.StoreVersion,
 		Current: "cdr",
 		Accounts: map[string]*config.Account{
 			// Live refresh token, but the access token beside it is long expired.
-			"cdr": {AccessToken: "access-gen1-expired", RefreshToken: "refresh-gen2", APIUrl: srv.URL},
+			"cdr": {AccessToken: "access-gen1-expired", RefreshToken: testRefreshIdentity("u1", "test-device", "gen2"), APIUrl: srv.URL},
 		},
 	})
 
@@ -165,7 +165,7 @@ func TestInvocationRefreshesWhenAdoptedAccessTokenIsAlsoStale(t *testing.T) {
 		APIUrl:  srv.URL,
 		Account: &config.Account{
 			AccessToken:  "access-gen0-expired",
-			RefreshToken: "refresh-gen1", // older than what is on disk
+			RefreshToken: testRefreshIdentity("u1", "test-device", "gen1"), // older than what is on disk
 			APIUrl:       srv.URL,
 		},
 	})
@@ -201,12 +201,12 @@ func TestConcurrentInvocationsShareOneRotation(t *testing.T) {
 		return
 	}
 
-	srv, state := newRotatingSessionServer(t, "access-gen0", "refresh-gen0")
+	srv, state := newRotatingSessionServer(t, "access-gen0", testRefreshIdentity("u1", "test-device", "gen0"))
 	home := seedStore(t, &config.Store{
 		Version: config.StoreVersion,
 		Current: "cdr",
 		Accounts: map[string]*config.Account{
-			"cdr": {AccessToken: "access-expired", RefreshToken: "refresh-gen0", APIUrl: srv.URL},
+			"cdr": {AccessToken: "access-expired", RefreshToken: testRefreshIdentity("u1", "test-device", "gen0"), APIUrl: srv.URL},
 		},
 	})
 
@@ -254,7 +254,7 @@ func runSessionHelper(t *testing.T) {
 		APIUrl:  apiURL,
 		Account: &config.Account{
 			AccessToken:  "access-expired",
-			RefreshToken: "refresh-gen0",
+			RefreshToken: testRefreshIdentity("u1", "test-device", "gen0"),
 			APIUrl:       apiURL,
 		},
 	})
