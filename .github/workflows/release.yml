@@ -38,14 +38,22 @@ jobs:
 
   npm:
     needs: release
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+
+      # OIDC support requires npm >=11.5.1. Pin the supported major rather than
+      # relying on the runner or the bundled npm version.
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11
 
       - name: Set version from tag
         run: |
@@ -55,5 +63,3 @@ jobs:
 
       - name: Publish to npm
         run: cd npm && npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

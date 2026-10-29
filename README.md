@@ -90,7 +90,7 @@ flag flags list -p proj_xxx
 
 ## Authentication
 
-Sign in via the browser. Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
+Sign in via the browser, or with a one-time code from any other device when no local browser can be reached (see [Logging in over SSH or on a headless machine](#logging-in-over-ssh-or-on-a-headless-machine)). Credentials land in `~/.flagify/config.json`, scoped to a **profile** so you can keep work and personal accounts in the same machine without logout/login loops.
 
 ```bash
 flagify auth login
@@ -105,7 +105,7 @@ If the browser flow comes back without tokens — typically an expired console s
 
 #### Logging in over SSH or on a headless machine
 
-The browser flow needs the browser to reach a `localhost` callback on the machine running the CLI, which never works over SSH. For those sessions the CLI uses the OAuth 2.0 device authorization flow (RFC 8628): it prints a one-time code and a URL you open **on any other device** (laptop, phone) where you can sign in to the console.
+Starting in CLI v2.4.0, the browser flow is no longer the only option. It needs the browser to reach a `localhost` callback on the machine running the CLI, which never works over SSH, so for those sessions the CLI uses the OAuth 2.0 device authorization flow (RFC 8628): it prints a one-time code and a URL you open **on any other device** (laptop, phone) where you can sign in to the console.
 
 ```bash
 flagify auth login --device        # force the device flow (alias: --no-browser)
