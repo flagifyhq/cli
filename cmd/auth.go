@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/flagifyhq/cli/internal/api"
 	"github.com/flagifyhq/cli/internal/config"
 	"github.com/flagifyhq/cli/internal/ui"
 	"github.com/spf13/cobra"
@@ -111,7 +113,7 @@ var authRemoveCmd = &cobra.Command{
 
 		// Prompt outside the lock — never hold it while waiting for a human.
 		confirmed, err := ui.Confirm(
-			fmt.Sprintf("Remove profile %s? This deletes tokens and defaults locally.", ui.Bold(name)),
+			fmt.Sprintf("Remove profile %s? This revokes persistent CLI credentials and deletes tokens and defaults locally.", ui.Bold(name)),
 			yes,
 		)
 		if err != nil {
@@ -126,6 +128,9 @@ var authRemoveCmd = &cobra.Command{
 		if err := config.UpdateStore(func(store *config.Store) error {
 			if _, ok := store.Accounts[name]; !ok {
 				return fmt.Errorf("profile %q not found", name)
+			}
+			if err := revokePersistentCredential(store.Accounts[name]); err != nil {
+				return err
 			}
 			delete(store.Accounts, name)
 			removed = config.PurgeBindingsForProfile(store, name)
@@ -195,7 +200,10 @@ func runLogout(profile string, all bool) error {
 				empty = true
 				return config.ErrNoChange
 			}
-			for _, acc := range store.Accounts {
+			for name, acc := range store.Accounts {
+				if err := revokePersistentCredential(acc); err != nil {
+					return fmt.Errorf("revoke profile %q: %w", name, err)
+				}
 				acc.AccessToken = ""
 				acc.RefreshToken = ""
 			}
@@ -224,6 +232,9 @@ func runLogout(profile string, all bool) error {
 		acc, ok := store.Accounts[target]
 		if !ok {
 			return fmt.Errorf("profile %q not found", target)
+		}
+		if err := revokePersistentCredential(acc); err != nil {
+			return err
 		}
 		acc.AccessToken = ""
 		acc.RefreshToken = ""
@@ -334,4 +345,28 @@ func init() {
 	authCmd.AddCommand(authRenameCmd)
 
 	rootCmd.AddCommand(authCmd)
+}
+
+// Called under UpdateStore so another process cannot refresh or reauthorize
+// this profile between revocation and credential removal. Stable CLI grants
+// do not rotate here, so a disk failure cannot lose a newly issued secret.
+func revokePersistentCredential(acc *config.Account) error {
+	if !config.IsPersistentCredential(acc.RefreshToken) {
+		return nil
+	}
+	client := api.NewClient(acc.AccessToken)
+	client.SetRefreshToken(acc.RefreshToken)
+	if acc.APIUrl != "" {
+		client.SetBaseURL(acc.APIUrl)
+	}
+	err := client.Post("/v1/auth/logout", map[string]string{"deviceId": acc.DeviceID}, nil)
+	if err != nil {
+		// An already revoked/invalid grant is safe to forget locally.
+		var apiErr *api.APIError
+		if errors.As(err, &apiErr) && (apiErr.Code == "session_revoked" || apiErr.Code == "token_invalid") {
+			return nil
+		}
+		return fmt.Errorf("could not revoke CLI credential; credentials kept locally, retry auth logout: %w", err)
+	}
+	return nil
 }

@@ -177,7 +177,7 @@ Bindings are stored under `bindings` in `~/.flagify/config.json` keyed by the ab
 
 Several `flagify` processes can share one config safely — editors, CI steps and agent sessions often run at once. Every write to `~/.flagify/config.json` happens inside a short exclusive lock on `~/.flagify/config.lock`, so a process that is saving a default never reverts a token another process refreshed in the meantime. The lock file is a sibling of the store, holds no data, and is created on demand; delete it only if no `flagify` process is running.
 
-Token refresh is serialized through that same lock. The API rotates the refresh token on every refresh, so the first invocation to notice an expired access token performs the exchange and the others adopt the pair it persisted instead of presenting a superseded token.
+Token refresh is serialized through that same lock. Legacy web refresh tokens rotate on every refresh, so the first invocation to notice an expired access token performs the exchange and the others adopt the pair it persisted instead of presenting a superseded token.
 
 ### How the CLI picks a profile
 
@@ -1023,3 +1023,41 @@ MIT -- see [LICENSE](./LICENSE) for details.
 <p align="center">
   <sub>Built with care by the <a href="https://flagify.dev">Flagify</a> team</sub>
 </p>
+
+
+### Persistent account authentication
+
+Sign in once per Flagify account and API server, using a profile such as `personal`.
+Reuse that profile from every project folder for the account. Each folder selects
+its own workspace, project and environment through `.flagify/project.json`; use
+`flagify project bind personal` for a local profile binding. Different Flagify
+accounts must keep separate profiles. `flagify status` shows the resolved context;
+`flagify whoami` checks authentication with the server.
+
+After upgrading the API and CLI, approve `flagify auth login --profile personal`
+once. Both browser and device login issue a persistent, revocable CLI credential.
+It does not expire when you leave the CLI unused for days. Existing expired or
+revoked refresh tokens cannot be recovered automatically; a new approval is needed
+once. Existing valid legacy refresh tokens keep their five-day policy until the
+next login; the CLI never silently changes their security policy.
+
+The persistent credential only renews 15-minute CLI access tokens. It permits
+project and flag operations, including keys and webhooks, within your current
+workspace permissions, plus account identification and workspace/project discovery.
+It cannot change account credentials, billing or team membership, accept invitations,
+or authorize another device. Every request checks server-side revocation; logout,
+reauthorization of that device, account disabling and account token-version changes
+invalidate access. Web sessions retain their existing lifetimes.
+
+Credentials stay in `~/.flagify/config.json` (mode `0600`), outside repositories.
+Never copy credentials into `.flagify/project.json`. The persistent credential is
+stable across refreshes, so an interrupted refresh cannot consume its only copy.
+The config lock still protects shared writes and legacy rotating refresh tokens.
+`flagify auth list` describes local metadata only; `refreshable` does not prove that
+the server has not revoked a grant.
+
+`flagify auth logout --profile personal` revokes that device before removing its
+local credentials; `auth remove` also revokes persistent credentials. A network or
+server failure preserves credentials and reports an error so revocation can be
+retried. `auth logout --all` processes each profile; retry after a partial failure.
+Revoking a shared profile signs out every folder using it on this machine.
