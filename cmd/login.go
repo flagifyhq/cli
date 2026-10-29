@@ -35,10 +35,29 @@ func maybeAutoSelect(cfg *config.Config) {
 		return
 	}
 
+	// Persist only the defaults being chosen, on the profile cfg was loaded
+	// from. Writing the whole flat Config here would push cfg's token snapshot
+	// back to disk and revert a rotation made by a concurrent invocation while
+	// the user was busy with the picker below.
+	profile := cfg.Profile()
+	setDefaults := func(apply func(*config.Defaults)) error {
+		return config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[profile]
+			if !ok {
+				return fmt.Errorf("profile %q no longer exists", profile)
+			}
+			apply(&acc.Defaults)
+			return nil
+		})
+	}
+
 	ws := workspaces[0]
 	cfg.Workspace = ws.Slug
 	cfg.WorkspaceID = ws.ID
-	if err := config.Save(cfg); err != nil {
+	if err := setDefaults(func(d *config.Defaults) {
+		d.Workspace = ws.Slug
+		d.WorkspaceID = ws.ID
+	}); err != nil {
 		return
 	}
 	fmt.Println(ui.Info(fmt.Sprintf("Workspace set to %s %s", ui.Bold(ws.Name), ui.Dim("("+ws.Slug+")"))))
@@ -50,7 +69,10 @@ func maybeAutoSelect(cfg *config.Config) {
 
 	cfg.Project = project.Slug
 	cfg.ProjectID = project.ID
-	if err := config.Save(cfg); err != nil {
+	if err := setDefaults(func(d *config.Defaults) {
+		d.Project = project.Slug
+		d.ProjectID = project.ID
+	}); err != nil {
 		return
 	}
 	fmt.Println(ui.Success(fmt.Sprintf("Project set to %s %s", ui.Bold(project.Name), ui.Dim("("+project.Slug+")"))))
@@ -148,26 +170,23 @@ func isEnvSet(key string) bool {
 }
 
 func prepareLoginProfile(profile string, random io.Reader) (string, *config.Config, error) {
-	store, err := config.LoadOrMigrate()
-	if err != nil {
-		return "", nil, err
-	}
+	if err := config.UpdateStore(func(store *config.Store) error {
+		if profile == "" {
+			profile = store.Current
+		}
+		if profile == "" {
+			profile = config.DefaultProfile
+		}
 
-	if profile == "" {
-		profile = store.Current
-	}
-	if profile == "" {
-		profile = config.DefaultProfile
-	}
-
-	if _, ok := store.Accounts[profile]; !ok {
-		store.Accounts[profile] = &config.Account{}
-	}
-	if err := ensureProfileDeviceID(store.Accounts[profile], random); err != nil {
-		return "", nil, fmt.Errorf("failed to create profile session identity: %w", err)
-	}
-	store.Current = profile
-	if err := config.SaveStore(store); err != nil {
+		if _, ok := store.Accounts[profile]; !ok {
+			store.Accounts[profile] = &config.Account{}
+		}
+		if err := ensureProfileDeviceID(store.Accounts[profile], random); err != nil {
+			return fmt.Errorf("failed to create profile session identity: %w", err)
+		}
+		store.Current = profile
+		return nil
+	}); err != nil {
 		return "", nil, err
 	}
 

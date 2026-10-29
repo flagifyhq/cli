@@ -137,15 +137,14 @@ var projectsDeleteCmd = &cobra.Command{
 
 		// If the deleted project was the active profile's default, scrub it so
 		// future commands don't send a dangling ID to the API.
-		if rc.Account != nil && rc.Account.Defaults.ProjectID == projID {
-			store, err := config.LoadStore()
-			if err == nil && rc.Profile != "" {
+		if rc.Account != nil && rc.Account.Defaults.ProjectID == projID && rc.Profile != "" {
+			_ = config.UpdateStore(func(store *config.Store) error {
 				if acc, ok := store.Accounts[rc.Profile]; ok {
 					acc.Defaults.Project = ""
 					acc.Defaults.ProjectID = ""
-					_ = config.SaveStore(store)
 				}
-			}
+				return nil
+			})
 		}
 
 		fmt.Println(ui.Success("Deleted project " + projID))
@@ -186,20 +185,20 @@ var projectsPickCmd = &cobra.Command{
 			return err
 		}
 
-		// Persist on the resolved profile — never on "current" unconditionally.
-		store, err := config.LoadStore()
-		if err != nil {
-			return err
-		}
-		acc, ok := store.Accounts[rc.Profile]
-		if !ok {
-			return fmt.Errorf("profile %q not found in local store", rc.Profile)
-		}
-		acc.Defaults.Workspace = workspaceSlug
-		acc.Defaults.WorkspaceID = workspaceID
-		acc.Defaults.Project = project.Slug
-		acc.Defaults.ProjectID = project.ID
-		if err := config.SaveStore(store); err != nil {
+		// Persist on the resolved profile — never on "current" unconditionally —
+		// in one locked transaction after the picker, touching only the
+		// defaults so a concurrent token rotation is not reverted.
+		if err := config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[rc.Profile]
+			if !ok {
+				return fmt.Errorf("profile %q not found in local store", rc.Profile)
+			}
+			acc.Defaults.Workspace = workspaceSlug
+			acc.Defaults.WorkspaceID = workspaceID
+			acc.Defaults.Project = project.Slug
+			acc.Defaults.ProjectID = project.ID
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 

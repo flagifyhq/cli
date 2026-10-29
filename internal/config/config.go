@@ -27,6 +27,12 @@ type Config struct {
 	profile string
 }
 
+// Profile reports which v2 account this flat view was materialized from. Empty
+// means the store had no current profile when it was loaded.
+func (c *Config) Profile() string {
+	return c.profile
+}
+
 // IsLoggedIn returns true if the user has a valid access token.
 func (c *Config) IsLoggedIn() bool {
 	return c.AccessToken != ""
@@ -63,53 +69,57 @@ func Load() (*Config, error) {
 // Save writes the given Config back to the active profile. If the store has no
 // current profile yet (first login), one named DefaultProfile is created and
 // marked as current, preserving single-account auth behavior for `flagify auth login`.
+//
+// The whole read-modify-write runs in one locked transaction, so a concurrent
+// process cannot slip a token rotation in between. Note this still writes every
+// token field from cfg: callers that only mean to change a default (workspace,
+// project, environment) must use UpdateStore and touch those fields alone,
+// otherwise they write back whatever tokens cfg was loaded with and revert a
+// rotation that happened since.
 func Save(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
 
-	s, err := LoadOrMigrate()
-	if err != nil {
-		return err
-	}
-	if s.Accounts == nil {
-		s.Accounts = map[string]*Account{}
-	}
+	return UpdateStore(func(s *Store) error {
+		if s.Accounts == nil {
+			s.Accounts = map[string]*Account{}
+		}
 
-	profile := cfg.profile
-	if profile == "" {
-		profile = s.Current
-	}
-	if profile == "" {
-		profile = DefaultProfile
-	}
+		profile := cfg.profile
+		if profile == "" {
+			profile = s.Current
+		}
+		if profile == "" {
+			profile = DefaultProfile
+		}
 
-	acc := s.Accounts[profile]
-	if acc == nil {
-		acc = &Account{}
-		s.Accounts[profile] = acc
-	}
+		acc := s.Accounts[profile]
+		if acc == nil {
+			acc = &Account{}
+			s.Accounts[profile] = acc
+		}
 
-	token := cfg.AccessToken
-	if token == "" && cfg.Token != "" {
-		token = cfg.Token
-	}
-	acc.AccessToken = token
-	acc.RefreshToken = cfg.RefreshToken
-	acc.DeviceID = cfg.DeviceID
-	acc.APIUrl = cfg.APIUrl
-	acc.ConsoleUrl = cfg.ConsoleUrl
-	acc.Defaults.Workspace = cfg.Workspace
-	acc.Defaults.WorkspaceID = cfg.WorkspaceID
-	acc.Defaults.Project = cfg.Project
-	acc.Defaults.ProjectID = cfg.ProjectID
-	acc.Defaults.Environment = cfg.Environment
+		token := cfg.AccessToken
+		if token == "" && cfg.Token != "" {
+			token = cfg.Token
+		}
+		acc.AccessToken = token
+		acc.RefreshToken = cfg.RefreshToken
+		acc.APIUrl = cfg.APIUrl
+		acc.ConsoleUrl = cfg.ConsoleUrl
+		acc.DeviceID = cfg.DeviceID
+		acc.Defaults.Workspace = cfg.Workspace
+		acc.Defaults.WorkspaceID = cfg.WorkspaceID
+		acc.Defaults.Project = cfg.Project
+		acc.Defaults.ProjectID = cfg.ProjectID
+		acc.Defaults.Environment = cfg.Environment
 
-	if s.Current == "" {
-		s.Current = profile
-	}
-
-	return SaveStore(s)
+		if s.Current == "" {
+			s.Current = profile
+		}
+		return nil
+	})
 }
 
 // configFromStore materializes the flat Config view of the store's active profile.

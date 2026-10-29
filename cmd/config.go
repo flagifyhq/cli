@@ -101,35 +101,54 @@ var configSetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value := args[1]
-
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		var oldValue string
 		switch key {
-		case "api-url":
-			oldValue = cfg.APIUrl
-			cfg.APIUrl = value
-		case "console-url":
-			oldValue = cfg.ConsoleUrl
-			cfg.ConsoleUrl = value
-		case "workspace":
-			oldValue = cfg.Workspace
-			cfg.Workspace = value
-		case "project":
-			oldValue = cfg.Project
-			cfg.Project = value
-		case "environment":
-			oldValue = cfg.Environment
-			cfg.Environment = value
+		case "api-url", "console-url", "workspace", "project", "environment":
 		default:
 			return fmt.Errorf("unknown config key %q. Valid keys: api-url, console-url, workspace, project, environment", key)
 		}
 
-		if err := config.Save(cfg); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
+		// Change only the requested field, inside one locked transaction. Going
+		// through the flat Config shim here would write back the tokens this
+		// command loaded at startup and revert a rotation another invocation
+		// persisted in the meantime.
+		var oldValue string
+		if err := config.UpdateStore(func(store *config.Store) error {
+			acc := store.ActiveAccount()
+			if acc == nil {
+				if store.Current == "" {
+					store.Current = config.DefaultProfile
+				}
+				if store.Accounts == nil {
+					store.Accounts = make(map[string]*config.Account)
+				}
+				acc = store.Accounts[store.Current]
+				if acc == nil {
+					acc = &config.Account{}
+					store.Accounts[store.Current] = acc
+				}
+			}
+			switch key {
+			case "api-url":
+				oldValue = acc.APIUrl
+				acc.APIUrl = value
+			case "console-url":
+				oldValue = acc.ConsoleUrl
+				acc.ConsoleUrl = value
+			case "workspace":
+				oldValue = acc.Defaults.Workspace
+				acc.Defaults.Workspace = value
+			case "project":
+				oldValue = acc.Defaults.Project
+				acc.Defaults.Project = value
+			case "environment":
+				oldValue = acc.Defaults.Environment
+				acc.Defaults.Environment = value
+			default:
+				return fmt.Errorf("unknown config key %q. Valid keys: api-url, console-url, workspace, project, environment", key)
+			}
+			return nil
+		}); err != nil {
+			return err
 		}
 
 		if oldValue == "" {

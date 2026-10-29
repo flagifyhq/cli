@@ -57,28 +57,30 @@ var environmentsPickCmd = &cobra.Command{
 			return err
 		}
 
-		store, err := config.LoadStore()
-		if err != nil {
-			return err
-		}
-		acc, ok := store.Accounts[rc.Profile]
-		if !ok {
-			return fmt.Errorf("profile %q not found in local store", rc.Profile)
-		}
-		if workspaceSlug != "" {
-			acc.Defaults.Workspace = workspaceSlug
-		}
-		if workspaceID != "" {
-			acc.Defaults.WorkspaceID = workspaceID
-		}
-		if projectSlug != "" {
-			acc.Defaults.Project = projectSlug
-		}
-		if projectID != "" {
-			acc.Defaults.ProjectID = projectID
-		}
-		acc.Defaults.Environment = env.Key
-		if err := config.SaveStore(store); err != nil {
+		// Read and write in one locked transaction, after the picker: the user
+		// may have spent a while choosing, and another invocation could have
+		// rotated this profile's tokens in the meantime. Only the defaults are
+		// touched, so that rotation survives.
+		if err := config.UpdateStore(func(store *config.Store) error {
+			acc, ok := store.Accounts[rc.Profile]
+			if !ok {
+				return fmt.Errorf("profile %q not found in local store", rc.Profile)
+			}
+			if workspaceSlug != "" {
+				acc.Defaults.Workspace = workspaceSlug
+			}
+			if workspaceID != "" {
+				acc.Defaults.WorkspaceID = workspaceID
+			}
+			if projectSlug != "" {
+				acc.Defaults.Project = projectSlug
+			}
+			if projectID != "" {
+				acc.Defaults.ProjectID = projectID
+			}
+			acc.Defaults.Environment = env.Key
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
