@@ -2,7 +2,18 @@
 
 All notable changes to the Flagify CLI will be documented in this file.
 
-## [v2.4.0](https://github.com/flagifyhq/cli/releases/tag/v2.4.0) — 2026-09-23
+## [v2.4.0](https://github.com/flagifyhq/cli/releases/tag/v2.4.0) — 2026-10-29
+
+### Breaking changes
+
+- **Newly approved CLI sessions stay connected until revoked, rather than expiring after five inactive days.** This requires the coordinated API and console update. Existing valid legacy credentials keep their current lifetime; expired or revoked credentials require one new approval. Use one profile per account/API server and bind additional folders with `flagify project bind --profile <name>`. Credentials remain outside repositories in `~/.flagify/config.json`.
+- **Logging out or removing a persistent profile revokes the device before deleting local credentials.** Network/server failure now returns an error and keeps credentials for retry; `auth logout --all` may partially revoke before a failure. A shared profile signs out all folders using it on the machine. Persistent CLI grants allow project management under workspace RBAC and cannot administer account credentials, billing or team membership.
+
+### Bug fixes
+
+- **Concurrent invocations preserve live credentials and share a single refresh.** Transactional config locking prevents lost token writes, while refresh adoption checks both access and refresh snapshots and pins the account/device/API server. A replaced profile cannot change an in-flight command's identity or leak its credentials to the original server ([#60](https://github.com/flagifyhq/cli/pull/60)).
+- **Custom-server URLs can be configured before the first login.** Bootstrap preserves existing profile credentials/defaults even when no current profile is selected.
+- **Account security revocation also protects device approval.** Browser token versions are checked before direct authorization or RFC device approval and retained until polling; a pre-reset token cannot mint a permanent replacement grant ([API #109](https://github.com/flagifyhq/api/pull/109)).
 
 ### Features
 
