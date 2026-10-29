@@ -9,12 +9,6 @@ All notable changes to the Flagify CLI will be documented in this file.
 - **Newly approved CLI sessions stay connected until revoked, rather than expiring after five inactive days.** This requires the coordinated API and console update. Existing valid legacy credentials keep their current lifetime; expired or revoked credentials require one new approval. Use one profile per account/API server and bind additional folders with `flagify project bind --profile <name>`. Credentials remain outside repositories in `~/.flagify/config.json`.
 - **Logging out or removing a persistent profile revokes the device before deleting local credentials.** Network/server failure now returns an error and keeps credentials for retry; `auth logout --all` may partially revoke before a failure. A shared profile signs out all folders using it on the machine. Persistent CLI grants allow project management under workspace RBAC and cannot administer account credentials, billing or team membership.
 
-### Bug fixes
-
-- **Concurrent invocations preserve live credentials and share a single refresh.** Transactional config locking prevents lost token writes, while refresh adoption checks both access and refresh snapshots and pins the account/device/API server. A replaced profile cannot change an in-flight command's identity or leak its credentials to the original server ([#60](https://github.com/flagifyhq/cli/pull/60)).
-- **Custom-server URLs can be configured before the first login.** Bootstrap preserves existing profile credentials/defaults even when no current profile is selected.
-- **Account security revocation also protects device approval.** Browser token versions are checked before direct authorization or RFC device approval and retained until polling; a pre-reset token cannot mint a permanent replacement grant ([API #109](https://github.com/flagifyhq/api/pull/109)).
-
 ### Features
 
 - **`flagify auth login` now works over SSH and on headless machines, via the OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).** The browser flow needs the browser to reach a `localhost` callback on the machine running the CLI, which never happens over SSH — the callback lands on the laptop and the login hung until the 5-minute timeout. The device flow instead prints a one-time code and a console URL you open **on any other device**, then polls until you approve:
@@ -29,6 +23,12 @@ All notable changes to the Flagify CLI will be documented in this file.
 
   The code expires after 10 minutes and works once. `Ctrl-C` exits with status 130, and credentials are written only after the console approves. In a non-interactive shell the code and URLs go to stderr, so a script capturing stdout gets no informational text ([#57](https://github.com/flagifyhq/cli/pull/57)).
 - **New flags on `flagify auth login`: `--device` (alias `--no-browser`) and `--browser`.** `--device` forces the device flow anywhere; `--browser` forces the existing loopback flow even on a detected headless session. Passing both fails with a mutually-exclusive-flags error before any config change or network request.
+
+### Bug fixes
+
+- **Concurrent invocations preserve live credentials and share a single refresh.** Transactional config locking prevents lost token writes, while refresh adoption checks both access and refresh snapshots and pins the account/device/API server. A replaced profile cannot change an in-flight command's identity or leak its credentials to the original server ([#60](https://github.com/flagifyhq/cli/pull/60)).
+- **Custom-server URLs can be configured before the first login.** Bootstrap preserves existing profile credentials/defaults even when no current profile is selected.
+- **Account security revocation also protects device approval.** Browser token versions are checked before direct authorization or RFC device approval and retained until polling; a pre-reset token cannot mint a permanent replacement grant ([API #109](https://github.com/flagifyhq/api/pull/109)).
 
 ### Improvements
 
